@@ -4,6 +4,7 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:http/http.dart' as http;
+import 'package:supabase_flutter/supabase_flutter.dart';
 
 void main() {
   runApp(const NovaryxApp());
@@ -43,12 +44,25 @@ class ProviderSettings {
   static const imageModel = 'kie_image_model';
   static const musicModel = 'kie_music_model';
   static const videoModel = 'kie_video_model';
+  static const supabaseUrl = 'supabase_url';
+  static const supabaseAnonKey = 'supabase_anon_key';
 
   static Future<String> read(String key, {String fallback = ''}) async =>
       await storage.read(key: key) ?? fallback;
 
   static Future<void> write(String key, String value) =>
       storage.write(key: key, value: value.trim());
+
+  static bool get supabaseReady => Supabase.instance.isInitialized;
+  static SupabaseClient? get supabase => supabaseReady ? Supabase.instance.client : null;
+
+  static Future<void> connectSupabase(String url, String anonKey) async {
+    if (url.trim().isEmpty || anonKey.trim().isEmpty) {
+      throw Exception('Enter your Supabase Project URL and anon/public key first.');
+    }
+    if (Supabase.instance.isInitialized) return;
+    await Supabase.initialize(url: url.trim(), anonKey: anonKey.trim());
+  }
 }
 
 class HomeScreen extends StatefulWidget {
@@ -451,6 +465,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
   final _controllers = <String, TextEditingController>{};
   bool _loading = true;
   bool _saving = false;
+  final _emailController = TextEditingController();
+  final _passwordController = TextEditingController();
+  String _authStatus = '';
+  bool _authWorking = false;
 
   static const _fields = <(String, String, bool, String)>[
     (ProviderSettings.groqKey, 'Groq API key', true, ''),
@@ -459,6 +477,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
     (ProviderSettings.imageModel, 'Kie.ai image model ID', false, ''),
     (ProviderSettings.musicModel, 'Kie.ai music model ID', false, ''),
     (ProviderSettings.videoModel, 'Kie.ai video model ID', false, ''),
+    (ProviderSettings.supabaseUrl, 'Supabase Project URL', false, ''),
+    (ProviderSettings.supabaseAnonKey, 'Supabase anon/public key', true, ''),
   ];
 
   @override
@@ -473,6 +493,60 @@ class _SettingsScreenState extends State<SettingsScreen> {
       _controllers[field.$1] = TextEditingController(text: value);
     }
     if (mounted) setState(() => _loading = false);
+  }
+
+  Future<void> _connectSupabase() async {
+    setState(() { _authWorking = true; _authStatus = 'Connecting to Supabase…'; });
+    try {
+      await ProviderSettings.connectSupabase(
+        _controllers[ProviderSettings.supabaseUrl]?.text ?? '',
+        _controllers[ProviderSettings.supabaseAnonKey]?.text ?? '',
+      );
+      if (mounted) setState(() => _authStatus = 'Supabase connected. You can now create an account or sign in.');
+    } catch (e) {
+      if (mounted) setState(() => _authStatus = 'Connection failed: ${_cleanError(e)}');
+    } finally {
+      if (mounted) setState(() => _authWorking = false);
+    }
+  }
+
+  Future<void> _authenticate({required bool signUp}) async {
+    final client = ProviderSettings.supabase;
+    if (client == null) {
+      setState(() => _authStatus = 'Connect Supabase first.');
+      return;
+    }
+    final email = _emailController.text.trim();
+    final password = _passwordController.text;
+    if (email.isEmpty || password.length < 6) {
+      setState(() => _authStatus = 'Enter a valid email and a password with at least 6 characters.');
+      return;
+    }
+    setState(() { _authWorking = true; _authStatus = signUp ? 'Creating account…' : 'Signing in…'; });
+    try {
+      if (signUp) {
+        final result = await client.auth.signUp(email: email, password: password);
+        if (mounted) setState(() => _authStatus = result.session == null
+            ? 'Account request sent. Check your email if confirmation is enabled.'
+            : 'Account created and signed in.');
+      } else {
+        await client.auth.signInWithPassword(email: email, password: password);
+        if (mounted) setState(() => _authStatus = 'Signed in as ${client.auth.currentUser?.email ?? email}.');
+      }
+    } catch (e) {
+      if (mounted) setState(() => _authStatus = 'Authentication failed: ${_cleanError(e)}');
+    } finally {
+      if (mounted) setState(() => _authWorking = false);
+    }
+  }
+
+  Future<void> _signOut() async {
+    try {
+      await ProviderSettings.supabase?.auth.signOut();
+      if (mounted) setState(() => _authStatus = 'Signed out.');
+    } catch (e) {
+      if (mounted) setState(() => _authStatus = 'Sign-out failed: ${_cleanError(e)}');
+    }
   }
 
   Future<void> _save() async {
@@ -492,6 +566,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
   @override
   void dispose() {
+    _emailController.dispose();
+    _passwordController.dispose();
     for (final controller in _controllers.values) {
       controller.dispose();
     }
@@ -527,6 +603,31 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   ),
                   const SizedBox(height: 16),
                 ],
+                FilledButton.icon(
+                  onPressed: _authWorking ? null : _connectSupabase,
+                  icon: const Icon(Icons.cloud_done_outlined),
+                  label: Padding(padding: const EdgeInsets.symmetric(vertical: 10), child: Text(_authWorking ? 'Connecting…' : 'Connect Supabase')),
+                ),
+                const SizedBox(height: 10),
+                const Divider(height: 28),
+                const Text('Supabase account', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
+                const SizedBox(height: 8),
+                Text('Current user: ${ProviderSettings.supabase?.auth.currentUser?.email ?? 'Not signed in'}', style: const TextStyle(color: Colors.white60)),
+                const SizedBox(height: 12),
+                TextField(controller: _emailController, keyboardType: TextInputType.emailAddress, autocorrect: false, decoration: const InputDecoration(labelText: 'Email')),
+                const SizedBox(height: 12),
+                TextField(controller: _passwordController, obscureText: true, decoration: const InputDecoration(labelText: 'Password (minimum 6 characters)')),
+                const SizedBox(height: 12),
+                Wrap(spacing: 10, runSpacing: 10, children: [
+                  FilledButton(onPressed: _authWorking ? null : () => _authenticate(signUp: true), child: const Text('Create account')),
+                  OutlinedButton(onPressed: _authWorking ? null : () => _authenticate(signUp: false), child: const Text('Sign in')),
+                  TextButton(onPressed: _authWorking ? null : _signOut, child: const Text('Sign out')),
+                ]),
+                if (_authStatus.isNotEmpty) ...[
+                  const SizedBox(height: 10),
+                  SelectableText(_authStatus, style: const TextStyle(color: Color(0xFFC4B6FF))),
+                ],
+                const SizedBox(height: 18),
                 FilledButton(
                   onPressed: _saving ? null : _save,
                   child: Padding(
