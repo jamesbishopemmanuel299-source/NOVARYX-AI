@@ -1,4 +1,4 @@
-name: Build Android APK
+name: Build Small Android APK
 
 on:
   workflow_dispatch:
@@ -30,16 +30,38 @@ jobs:
       - name: Install dependencies
         run: flutter pub get
 
+      - name: Enable Android code and resource shrinking
+        shell: bash
+        run: |
+          GRADLE_FILE="android/app/build.gradle.kts"
+          if [ -f "$GRADLE_FILE" ]; then
+            sed -i 's/isMinifyEnabled = false/isMinifyEnabled = true/' "$GRADLE_FILE"
+            sed -i 's/isShrinkResources = false/isShrinkResources = true/' "$GRADLE_FILE"
+          else
+            GRADLE_FILE="android/app/build.gradle"
+            if [ -f "$GRADLE_FILE" ]; then
+              sed -i 's/minifyEnabled false/minifyEnabled true/' "$GRADLE_FILE"
+              sed -i 's/shrinkResources false/shrinkResources true/' "$GRADLE_FILE"
+            fi
+          fi
+          echo "Using release config in $GRADLE_FILE"
+          grep -nE 'isMinifyEnabled|isShrinkResources|minifyEnabled|shrinkResources' "$GRADLE_FILE" || true
+
       - name: Analyze
         run: flutter analyze
         continue-on-error: true
 
-      - name: Build debug APK
-        run: flutter build apk --debug
+      - name: Build optimized ARM64 release APK
+        run: flutter build apk --release --target-platform android-arm64 --obfuscate --split-debug-info=build/symbols
 
-      - name: Upload APK
+      - name: Report APK size
+        run: |
+          ls -lh build/app/outputs/flutter-apk/app-release.apk
+          du -h build/app/outputs/flutter-apk/app-release.apk
+
+      - name: Upload optimized APK
         uses: actions/upload-artifact@v4
         with:
-          name: novaryx-debug-apk
-          path: build/app/outputs/flutter-apk/app-debug.apk
+          name: novaryx-arm64-release-apk
+          path: build/app/outputs/flutter-apk/app-release.apk
           if-no-files-found: error
