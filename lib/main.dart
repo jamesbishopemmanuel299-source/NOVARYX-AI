@@ -6,7 +6,15 @@ import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:http/http.dart' as http;
 import 'package:supabase_flutter/supabase_flutter.dart';
 
-void main() {
+const String defaultSupabaseUrl = 'https://vihbsfrwnslnmheowkhy.supabase.co';
+const String defaultSupabasePublishableKey = 'sb_publishable_HIMGxb-O6fj9O7OzT4ukuQ_jm5W8mWz';
+
+Future<void> main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  await Supabase.initialize(
+    url: defaultSupabaseUrl,
+    anonKey: defaultSupabasePublishableKey,
+  );
   runApp(const NovaryxApp());
 }
 
@@ -57,11 +65,16 @@ class ProviderSettings {
   static SupabaseClient? get supabase => supabaseReady ? Supabase.instance.client : null;
 
   static Future<void> connectSupabase(String url, String anonKey) async {
-    if (url.trim().isEmpty || anonKey.trim().isEmpty) {
-      throw Exception('Enter your Supabase Project URL and anon/public key first.');
+    final resolvedUrl = url.trim().isEmpty ? defaultSupabaseUrl : url.trim();
+    final resolvedKey = anonKey.trim().isEmpty ? defaultSupabasePublishableKey : anonKey.trim();
+    if (Supabase.instance.isInitialized) {
+      final configuredUrl = await read(supabaseUrl, fallback: defaultSupabaseUrl);
+      if (configuredUrl != resolvedUrl) {
+        throw Exception('Supabase is already initialized with the app default project. To change projects, restart the app after updating settings.');
+      }
+      return;
     }
-    if (Supabase.instance.isInitialized) return;
-    await Supabase.initialize(url: url.trim(), anonKey: anonKey.trim());
+    await Supabase.initialize(url: resolvedUrl, anonKey: resolvedKey);
   }
 }
 
@@ -489,7 +502,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
   Future<void> _load() async {
     for (final field in _fields) {
-      final value = await ProviderSettings.read(field.$1, fallback: field.$4);
+      final defaultValue = field.$1 == ProviderSettings.supabaseUrl
+          ? defaultSupabaseUrl
+          : field.$1 == ProviderSettings.supabaseAnonKey
+              ? defaultSupabasePublishableKey
+              : field.$4;
+      final value = await ProviderSettings.read(field.$1, fallback: defaultValue);
       _controllers[field.$1] = TextEditingController(text: value);
     }
     if (mounted) setState(() => _loading = false);
