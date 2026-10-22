@@ -67,3 +67,15 @@ flutter run
 ## Current limitations
 - Kie.ai model IDs and input fields vary. The app sends a common prompt-based task input; some models may require additional fields.
 - Results depend on the provider returning a task ID and result URL in its response.
+
+
+## Generation history
+
+The app records successful Groq chat exchanges and completed Kie.ai image, music, and video generations in the signed-in user's Supabase account. The **History** tab shows the latest 100 items and allows users to delete individual records. Row Level Security restricts records to their owner.
+
+Before using History, apply `supabase/migrations/20261022000000_generation_history.sql` to the Supabase project:
+1. Open the [Supabase SQL Editor](https://supabase.com/dashboard/project/vihbsfrwnslnmheowkhy/sql/new).
+2. Paste the migration SQL from the repository and run it.
+3. Sign in to NOVARYX-AI, then open **History**. Pull down to refresh.
+
+Only text responses and provider result URLs are stored; the generated media itself remains hosted by the provider. History is not available until the database migration has been applied.
