@@ -102,3 +102,8 @@ The Flutter generation screens include selectable prompt-style presets for all t
 - **Video:** cinematic, photorealistic, anime, 3D animation, fantasy, cyberpunk, documentary, music video, anime action, product ad, nature, stop motion, vintage film, sci-fi, horror, and travel.
 
 A selected style is included in the prompt sent to Kie.ai. Actual results depend on the selected Kie.ai model and its supported capabilities; these presets guide the prompt and do not automatically add new provider models or guarantee every style on every model.
+
+
+## Image and video generation modes
+
+The image screen supports **Text to image** and **Image to image**. The video screen supports **Text to video** and **Image to video**. For image-based modes, enter a publicly accessible reference image URL; the app sends it to the provider gateway as `image_url`. The selected Kie.ai model must support that input field and the chosen aspect ratio. Model input schemas differ, so verify the configured model's documented input names before using image-based generation.
