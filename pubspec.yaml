@@ -29,6 +29,6 @@ flutter:
 flutter_launcher_icons:
   android: true
   ios: false
-  image_path: assets/branding/novaryx_app_icon.svg
+  image_path: assets/branding/novaryx_app_icon.png
   adaptive_icon_background: "#05091B"
-  adaptive_icon_foreground: assets/branding/novaryx_app_icon.svg
+  adaptive_icon_foreground: assets/branding/novaryx_app_icon.png
