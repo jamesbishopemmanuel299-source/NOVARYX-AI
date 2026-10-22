@@ -123,23 +123,19 @@ class _HomeScreenState extends State<HomeScreen> {
       final history = _messages
           .map((m) => <String, dynamic>{'role': m.role, 'content': m.text})
           .toList();
-      final response = await http
-          .post(
-            Uri.parse('https://api.groq.com/openai/v1/chat/completions'),
-            headers: {
-              'Authorization': 'Bearer $key',
-              'Content-Type': 'application/json',
-            },
-            body: jsonEncode({
-              'model': model,
-              'messages': history,
-              'temperature': 0.7,
-            }),
+      final session = Supabase.instance.client.auth.currentSession;
+      if (session == null) {
+        throw Exception('Sign in to your Supabase account in Settings before using AI services.');
+      }
+      final response = await Supabase.instance.client.functions
+          .invoke(
+            'provider-gateway',
+            body: {'action': 'chat', 'model': model, 'messages': history},
           )
           .timeout(const Duration(seconds: 90));
-      final body = _decodeBody(response.body);
-      if (response.statusCode < 200 || response.statusCode >= 300) {
-        throw Exception(_errorFrom(body, response.statusCode));
+      final body = _decodeBody(jsonEncode(response.data));
+      if (response.status < 200 || response.status >= 300) {
+        throw Exception(_errorFrom(body, response.status));
       }
       final choices = body['choices'];
       final answer = choices is List && choices.isNotEmpty
@@ -352,14 +348,19 @@ class _GenerationScreenState extends State<GenerationScreen> {
       final model = await ProviderSettings.read(widget.kind.modelKey);
       if (key.isEmpty) throw Exception('Add your Kie.ai API key in Settings first.');
       if (model.isEmpty) throw Exception('Add a supported Kie.ai ${widget.kind.label.toLowerCase()} model ID in Settings.');
-      final createResponse = await http.post(
-        Uri.parse('https://api.kie.ai/api/v1/jobs/createTask'),
-        headers: {'Authorization': 'Bearer $key', 'Content-Type': 'application/json'},
-        body: jsonEncode({'model': model, 'input': {'prompt': prompt}}),
-      ).timeout(const Duration(seconds: 60));
-      final createBody = _decodeBody(createResponse.body);
-      if (createResponse.statusCode < 200 || createResponse.statusCode >= 300) {
-        throw Exception(_errorFrom(createBody, createResponse.statusCode));
+      if (Supabase.instance.client.auth.currentSession == null) {
+        throw Exception('Sign in to your Supabase account in Settings before using AI services.');
+      }
+      final createResponse = await Supabase.instance.client.functions
+          .invoke('provider-gateway', body: {
+            'action': 'kie-create',
+            'model': model,
+            'prompt': prompt,
+          })
+          .timeout(const Duration(seconds: 60));
+      final createBody = _decodeBody(jsonEncode(createResponse.data));
+      if (createResponse.status < 200 || createResponse.status >= 300) {
+        throw Exception(_errorFrom(createBody, createResponse.status));
       }
       final taskId = _findString(createBody, const ['taskId', 'task_id', 'id']);
       if (taskId == null) throw Exception('Kie.ai response did not contain a task ID: ${createResponse.body}');
@@ -368,13 +369,15 @@ class _GenerationScreenState extends State<GenerationScreen> {
       for (var i = 0; i < 60; i++) {
         await Future<void>.delayed(const Duration(seconds: 5));
         if (!mounted) return;
-        final pollResponse = await http.get(
-          Uri.parse('https://api.kie.ai/api/v1/jobs/recordInfo?taskId=${Uri.encodeQueryComponent(taskId)}'),
-          headers: {'Authorization': 'Bearer $key'},
-        ).timeout(const Duration(seconds: 45));
-        final pollBody = _decodeBody(pollResponse.body);
-        if (pollResponse.statusCode < 200 || pollResponse.statusCode >= 300) {
-          throw Exception(_errorFrom(pollBody, pollResponse.statusCode));
+        final pollResponse = await Supabase.instance.client.functions
+            .invoke('provider-gateway', body: {
+              'action': 'kie-poll',
+              'taskId': taskId,
+            })
+            .timeout(const Duration(seconds: 45));
+        final pollBody = _decodeBody(jsonEncode(pollResponse.data));
+        if (pollResponse.status < 200 || pollResponse.status >= 300) {
+          throw Exception(_errorFrom(pollBody, pollResponse.status));
         }
         lastState = (_findString(pollBody, const ['state', 'status', 'taskStatus']) ?? 'processing').toLowerCase();
         result = _findResultUrl(pollBody);
