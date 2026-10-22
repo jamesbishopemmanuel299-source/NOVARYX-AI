@@ -107,3 +107,8 @@ A selected style is included in the prompt sent to Kie.ai. Actual results depend
 ## Image and video generation modes
 
 The image screen supports **Text to image** and **Image to image**. The video screen supports **Text to video** and **Image to video**. For image-based modes, enter a publicly accessible reference image URL; the app sends it to the provider gateway as `image_url`. The selected Kie.ai model must support that input field and the chosen aspect ratio. Model input schemas differ, so verify the configured model's documented input names before using image-based generation.
+
+
+### Video-to-video mode
+
+The video generation screen now offers **Video to video**. Enter a publicly accessible source video URL and describe the transformation you want. The app forwards the source as `video_url` to the Kie.ai task input. This requires a configured Kie.ai video model that supports video input and that exact field name; supported formats, duration, and other limits depend on the model.
