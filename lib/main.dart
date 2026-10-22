@@ -6,8 +6,14 @@ import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:http/http.dart' as http;
 import 'package:supabase_flutter/supabase_flutter.dart';
 
-const String defaultSupabaseUrl = 'https://vihbsfrwnslnmheowkhy.supabase.co';
-const String defaultSupabasePublishableKey = 'sb_publishable_HIMGxb-O6fj9O7OzT4ukuQ_jm5W8mWz';
+const String defaultSupabaseUrl = String.fromEnvironment(
+  'SUPABASE_URL',
+  defaultValue: 'https://vihbsfrwnslnmheowkhy.supabase.co',
+);
+const String defaultSupabasePublishableKey = String.fromEnvironment(
+  'SUPABASE_PUBLISHABLE_KEY',
+  defaultValue: 'sb_publishable_HIMGxb-O6fj9O7OzT4ukuQ_jm5W8mWz',
+);
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
