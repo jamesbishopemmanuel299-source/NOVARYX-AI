@@ -112,3 +112,10 @@ The image screen supports **Text to image** and **Image to image**. The video sc
 ### Video-to-video mode
 
 The video generation screen now offers **Video to video**. Enter a publicly accessible source video URL and describe the transformation you want. The app forwards the source as `video_url` to the Kie.ai task input. This requires a configured Kie.ai video model that supports video input and that exact field name; supported formats, duration, and other limits depend on the model.
+
+
+## Community templates
+
+The Templates tab lists community-shared image, video, and music generation prompts. After generating media, choose **Post as template**, add a title and optional description, and publish it. Other signed-in users can choose **Use template** to open the matching generator with the prompt, style, and mode prefilled, then edit the prompt before generating. The template stores the result URL as a reference and does not copy or host the media file itself.
+
+Before using the feature, apply `supabase/migrations/20261022020000_community_templates.sql` in the Supabase SQL Editor. Users must be signed in to browse or post templates. Only post media and prompts you have the rights to share.
