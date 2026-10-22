@@ -43,6 +43,7 @@ serve(async (req) => {
   }
 
   const action = String(input.action ?? "");
+  const unlimitedCredits = (userData.user.email ?? "").toLowerCase() === "jamesbishopemmanuel@gmail.com";
   try {
 
     if (action === "credit-purchase-initialize") {
@@ -103,8 +104,10 @@ serve(async (req) => {
       if (!key) return reply({ error: "GROQ_API_KEY is not configured in Supabase Edge Function secrets." }, 500);
       const messages = input.messages;
       if (!Array.isArray(messages) || messages.length === 0) return reply({ error: "messages must be a non-empty array." }, 400);
-      const { error: creditError } = await supabase.rpc("spend_generation_credits", { p_amount: 1 });
-      if (creditError) return reply({ error: creditError.message.includes("Not enough") ? "Not enough generation credits. Check your balance or purchase more credits." : creditError.message }, 402);
+      if (!unlimitedCredits) {
+        const { error: creditError } = await supabase.rpc("spend_generation_credits", { p_amount: 1 });
+        if (creditError) return reply({ error: creditError.message.includes("Not enough") ? "Not enough generation credits. Check your balance or purchase more credits." : creditError.message }, 402);
+      }
       const upstream = await fetch("https://api.groq.com/openai/v1/chat/completions", {
         method: "POST",
         headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json" },
@@ -127,8 +130,10 @@ serve(async (req) => {
       const costs: Record<string, number> = { image: 3, music: 5, video: 8 };
       const cost = costs[generationKind];
       if (!cost) return reply({ error: "generationKind must be image, music, or video." }, 400);
-      const { error: creditError } = await supabase.rpc("spend_generation_credits", { p_amount: cost });
-      if (creditError) return reply({ error: creditError.message.includes("Not enough") ? "Not enough generation credits. Check your balance or purchase more credits." : creditError.message }, 402);
+      if (!unlimitedCredits) {
+        const { error: creditError } = await supabase.rpc("spend_generation_credits", { p_amount: cost });
+        if (creditError) return reply({ error: creditError.message.includes("Not enough") ? "Not enough generation credits. Check your balance or purchase more credits." : creditError.message }, 402);
+      }
       const upstream = await fetch("https://api.kie.ai/api/v1/jobs/createTask", {
         method: "POST",
         headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json" },
