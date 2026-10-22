@@ -1,9 +1,12 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:http/http.dart' as http;
+import 'package:record/record.dart';
+import 'package:file_picker/file_picker.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'supabase_data_store.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -666,6 +669,11 @@ class _GenerationScreenState extends State<GenerationScreen> {
   String _generationMode = 'Text to image';
   final _referenceImageController = TextEditingController();
   final _referenceVideoController = TextEditingController();
+  final AudioRecorder _voiceRecorder = AudioRecorder();
+  String _voiceMode = 'AI voice';
+  String? _voiceFilePath;
+  String? _voiceFileName;
+  bool _recordingVoice = false;
   String? _resultUrl;
 
   @override
@@ -681,6 +689,7 @@ class _GenerationScreenState extends State<GenerationScreen> {
     _promptController.dispose();
     _referenceImageController.dispose();
     _referenceVideoController.dispose();
+    _voiceRecorder.dispose();
     super.dispose();
   }
 
@@ -734,6 +743,81 @@ class _GenerationScreenState extends State<GenerationScreen> {
     }
   }
 
+  Future<void> _pickVoiceFile() async {
+    try {
+      final picked = await FilePicker.platform.pickFiles(
+        type: FileType.custom,
+        allowedExtensions: const ['wav', 'mp3', 'm4a', 'aac', 'ogg', 'flac'],
+        withData: false,
+      );
+      if (picked == null || picked.files.single.path == null) return;
+      setState(() {
+        _voiceFilePath = picked.files.single.path;
+        _voiceFileName = picked.files.single.name;
+        _voiceMode = 'Upload voice';
+        _status = 'Voice file selected. It will be uploaded securely when you generate.';
+      });
+    } catch (e) {
+      if (mounted) setState(() => _status = 'Could not select voice file: ${_cleanError(e)}');
+    }
+  }
+
+  Future<void> _toggleVoiceRecording() async {
+    if (_recordingVoice) {
+      try {
+        final path = await _voiceRecorder.stop();
+        if (path != null && mounted) {
+          setState(() {
+            _voiceFilePath = path;
+            _voiceFileName = 'Recorded voice';
+            _recordingVoice = false;
+            _voiceMode = 'Record voice';
+            _status = 'Voice recording saved. It will be uploaded securely when you generate.';
+          });
+        } else if (mounted) {
+          setState(() => _recordingVoice = false);
+        }
+      } catch (e) {
+        if (mounted) setState(() { _recordingVoice = false; _status = 'Could not stop recording: ${_cleanError(e)}'; });
+      }
+      return;
+    }
+    try {
+      if (!await _voiceRecorder.hasPermission()) {
+        setState(() => _status = 'Microphone permission is required to record your voice.');
+        return;
+      }
+      final path = '${Directory.systemTemp.path}/novaryx_voice_${DateTime.now().millisecondsSinceEpoch}.m4a';
+      await _voiceRecorder.start(const RecordConfig(encoder: AudioEncoder.aacLc), path: path);
+      if (mounted) setState(() {
+        _recordingVoice = true;
+        _voiceMode = 'Record voice';
+        _voiceFilePath = null;
+        _voiceFileName = null;
+        _status = 'Recording voice… tap Stop recording when finished.';
+      });
+    } catch (e) {
+      if (mounted) setState(() => _status = 'Could not start recording: ${_cleanError(e)}');
+    }
+  }
+
+  Future<String> _uploadVoiceAndGetUrl() async {
+    final path = _voiceFilePath;
+    final user = Supabase.instance.client.auth.currentUser;
+    if (path == null || user == null) throw Exception('Select or record a voice sample and sign in first.');
+    final file = File(path);
+    if (!await file.exists()) throw Exception('The selected voice file is no longer available. Select it again.');
+    final bytes = await file.readAsBytes();
+    if (bytes.isEmpty) throw Exception('The voice file is empty.');
+    if (bytes.length > 25 * 1024 * 1024) throw Exception('Voice files must be 25 MB or smaller.');
+    final ext = path.split('.').last.toLowerCase().replaceAll(RegExp(r'[^a-z0-9]'), '');
+    final objectPath = '${user.id}/voice/${DateTime.now().millisecondsSinceEpoch}.${ext.isEmpty ? 'm4a' : ext}';
+    final storage = Supabase.instance.client.storage.from('user-assets');
+    await storage.uploadBinary(objectPath, bytes, fileOptions: const FileOptions(upsert: true));
+    final signed = await storage.createSignedUrl(objectPath, 3600);
+    return signed;
+  }
+
   Future<void> _generate() async {
     final rawPrompt = _promptController.text.trim();
     if (rawPrompt.isEmpty || _working) return;
@@ -748,7 +832,8 @@ class _GenerationScreenState extends State<GenerationScreen> {
       return;
     }
     final ratioPrompt = widget.kind == GenerationKind.music ? '' : '\nAspect ratio: $_selectedRatio. Compose the scene for this frame shape; do not add borders or letterboxing.';
-    final prompt = 'Mode: $_generationMode. Style: $_selectedStyle. ${_styleInstruction(widget.kind, _selectedStyle)}$ratioPrompt\n\nUser prompt: $rawPrompt';
+    if (widget.kind == GenerationKind.music && _voiceMode != 'AI voice' && _voiceFilePath == null) { setState(() => _status = 'Record or select a voice file first.'); return; }
+    final prompt = 'Mode: ${widget.kind == GenerationKind.music ? _voiceMode : _generationMode}. Style: $_selectedStyle. ${_styleInstruction(widget.kind, _selectedStyle)}$ratioPrompt\n\nUser prompt: $rawPrompt${widget.kind == GenerationKind.music && _voiceMode == 'AI voice' ? '\nUse an AI-generated vocal performance if supported by the selected music model.' : widget.kind == GenerationKind.music ? '\nUse the supplied voice sample as the vocal reference if the selected music model supports audio input.' : ''}';
     setState(() {
       _working = true;
       _status = 'Submitting task to Kie.ai…';
@@ -760,12 +845,14 @@ class _GenerationScreenState extends State<GenerationScreen> {
       if (Supabase.instance.client.auth.currentSession == null) {
         throw Exception('Sign in to your Supabase account in Settings before using AI services.');
       }
+      final voiceUrl = widget.kind == GenerationKind.music && _voiceMode != 'AI voice' ? await _uploadVoiceAndGetUrl() : null;
       final createResponse = await Supabase.instance.client.functions
           .invoke('provider-gateway', body: {
             'action': 'kie-create',
             'generationKind': widget.kind.name,
             'model': model,
             'prompt': prompt,
+            if (voiceUrl != null) 'audioUrl': voiceUrl,
             if (widget.kind == GenerationKind.image && _generationMode == 'Image to image') 'imageUrl': referenceImage,
             if (widget.kind == GenerationKind.video && _generationMode == 'Image to video') 'imageUrl': referenceImage,
             if (widget.kind == GenerationKind.video && _generationMode == 'Video to video') 'videoUrl': referenceVideo,
@@ -908,6 +995,47 @@ class _GenerationScreenState extends State<GenerationScreen> {
             )).toList(),
           ),
           const SizedBox(height: 22),
+        ],
+        if (kind == GenerationKind.music) ...[
+          Text('Vocal source', style: Theme.of(context).textTheme.titleMedium),
+          const SizedBox(height: 10),
+          Wrap(spacing: 8, runSpacing: 8, children: const ['AI voice', 'Record voice', 'Upload voice'].map((mode) => mode).map((mode) => ChoiceChip(
+            label: Text(mode),
+            selected: _voiceMode == mode,
+            onSelected: _working || _recordingVoice ? null : (_) => setState(() => _voiceMode = mode),
+            selectedColor: const Color(0xFF123D72),
+            side: BorderSide(color: _voiceMode == mode ? const Color(0xFF00EFFF) : const Color(0xFF244A82)),
+            labelStyle: TextStyle(color: _voiceMode == mode ? const Color(0xFF00EFFF) : Colors.white70),
+          )).toList()),
+          if (_voiceMode == 'Record voice') ...[
+            const SizedBox(height: 10),
+            OutlinedButton.icon(
+              onPressed: _working ? null : _toggleVoiceRecording,
+              icon: Icon(_recordingVoice ? Icons.stop_circle_outlined : Icons.mic_none),
+              label: Text(_recordingVoice ? 'Stop recording' : 'Record voice'),
+            ),
+          ],
+          if (_voiceMode == 'Upload voice') ...[
+            const SizedBox(height: 10),
+            OutlinedButton.icon(
+              onPressed: _working ? null : _pickVoiceFile,
+              icon: const Icon(Icons.upload_file),
+              label: const Text('Choose audio file'),
+            ),
+          ],
+          if (_voiceFileName != null) Padding(
+            padding: const EdgeInsets.only(top: 8),
+            child: Row(children: [
+              const Icon(Icons.audio_file, color: Color(0xFF00EFFF), size: 18),
+              const SizedBox(width: 8),
+              Expanded(child: Text(_voiceFileName!, maxLines: 1, overflow: TextOverflow.ellipsis)),
+              IconButton(onPressed: _working ? null : () => setState(() { _voiceFilePath = null; _voiceFileName = null; }), icon: const Icon(Icons.close)),
+            ]),
+          ),
+          const Padding(
+            padding: EdgeInsets.only(top: 8, bottom: 16),
+            child: Text('Voice files are uploaded to your private Supabase storage. Voice-reference support depends on the Kie.ai music model you configure.', style: TextStyle(color: Colors.white54, fontSize: 12)),
+          ),
         ],
         Text('Choose a style', style: Theme.of(context).textTheme.titleMedium),
         const SizedBox(height: 10),
