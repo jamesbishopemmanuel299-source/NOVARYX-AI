@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024">
+<defs>
+ <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#020718"/><stop offset=".55" stop-color="#080d2b"/><stop offset="1" stop-color="#10051f"/></linearGradient>
+ <linearGradient id="neon" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#00f5ff"/><stop offset=".48" stop-color="#174dff"/><stop offset=".78" stop-color="#8a2cff"/><stop offset="1" stop-color="#ff36dc"/></linearGradient>
+ <linearGradient id="orb" x1="0" y1="0" x2="1" y2="0"><stop stop-color="#00f5ff"/><stop offset=".48" stop-color="#1678ff"/><stop offset=".78" stop-color="#a53cff"/><stop offset="1" stop-color="#ff45e7"/></linearGradient>
+ <filter id="glow" x="-40%" y="-40%" width="180%" height="180%"><feGaussianBlur stdDeviation="14" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
+</defs>
+<rect width="1024" height="1024" rx="190" fill="url(#bg)"/>
+<rect x="18" y="18" width="988" height="988" rx="178" fill="none" stroke="url(#neon)" stroke-width="10" filter="url(#glow)"/>
+<path d="M290 650 V320 Q290 280 330 300 L620 540 V360 Q620 320 660 340 L720 375 V715 Q720 760 680 730 L390 485 V670 Q390 700 355 720 Z" fill="url(#neon)" stroke="#66f8ff" stroke-width="5" stroke-linejoin="round"/>
+<ellipse cx="510" cy="515" rx="365" ry="120" transform="rotate(-17 510 515)" fill="none" stroke="#0758ff" stroke-width="26" opacity=".65"/>
+<ellipse cx="510" cy="515" rx="365" ry="120" transform="rotate(-17 510 515)" fill="none" stroke="url(#orb)" stroke-width="20" filter="url(#glow)"/>
+<path d="M650 145 L672 205 L732 227 L672 249 L650 309 L628 249 L568 227 L628 205 Z" fill="#00eaff" filter="url(#glow)"/>
+</svg>
