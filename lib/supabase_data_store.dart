@@ -121,7 +121,7 @@ class NovaryxCloudStore {
     final row = await _client.from('user_assets').insert({
       'user_id': userId,
       'asset_type': _assetTypeFor(kind),
-      'bucket_id': bucketPath == null ? null : 'user-assets',
+      'bucket_id': 'user-assets',
       'file_path': bucketPath ?? sourceUrl,
       'original_filename': bucketPath?.split('/').last,
       'mime_type': mimeType ?? _mimeFor(kind),
