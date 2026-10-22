@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:http/http.dart' as http;
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 const String _supabaseUrlFromBuild = String.fromEnvironment('SUPABASE_URL');
 const String _supabaseKeyFromBuild = String.fromEnvironment('SUPABASE_PUBLISHABLE_KEY');
@@ -119,6 +120,131 @@ class _CreditsBalanceBadgeState extends State<CreditsBalanceBadge> {
         ]),
       ),
     ),
+  );
+}
+
+
+class CreditPackage {
+  const CreditPackage(this.credits, this.priceNaira, this.label);
+  final int credits;
+  final int priceNaira;
+  final String label;
+}
+
+class TopUpScreen extends StatefulWidget {
+  const TopUpScreen({super.key});
+  @override
+  State<TopUpScreen> createState() => _TopUpScreenState();
+}
+
+class _TopUpScreenState extends State<TopUpScreen> {
+  static const packages = <CreditPackage>[
+    CreditPackage(100, 1332, 'Starter'),
+    CreditPackage(250, 3330, 'Mini'),
+    CreditPackage(500, 6659, 'Plus'),
+    CreditPackage(1000, 13318, 'Pro'),
+    CreditPackage(2500, 33295, 'Creator'),
+    CreditPackage(5000, 66590, 'Studio'),
+    CreditPackage(10000, 133180, 'Max'),
+  ];
+  bool _busy = false;
+  String _status = '';
+  String? _pendingRef;
+  int? _selectedCredits;
+
+  Future<void> _buy(CreditPackage package) async {
+    final client = Supabase.instance.client;
+    final user = client.auth.currentUser;
+    if (user == null || user.email == null) {
+      setState(() => _status = 'Sign in with an email in Settings before buying credits.');
+      return;
+    }
+    setState(() { _busy = true; _status = 'Creating secure checkout…'; _selectedCredits = package.credits; });
+    try {
+      final response = await client.functions.invoke('provider-gateway', body: {
+        'action': 'credit-purchase-initialize', 'credits': package.credits,
+        'redirect_url': 'https://novaryx-ai-payment.invalid/return', 'email': user.email,
+      });
+      final data = _decodeBody(jsonEncode(response.data));
+      if (response.status < 200 || response.status >= 300) throw Exception(_errorFrom(data, response.status));
+      final link = data['checkout_url']?.toString() ?? '';
+      final ref = data['tx_ref']?.toString() ?? '';
+      if (!link.startsWith('https://') || ref.isEmpty) throw Exception('Checkout link was not returned.');
+      _pendingRef = ref;
+      final opened = await launchUrl(Uri.parse(link), mode: LaunchMode.externalApplication);
+      if (!opened) throw Exception('Could not open checkout. Try again.');
+      if (mounted) setState(() => _status = 'Complete payment in your browser, then return here and tap Verify payment.');
+    } catch (e) {
+      if (mounted) setState(() => _status = _cleanError(e));
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  Future<void> _verify() async {
+    final ref = _pendingRef;
+    if (ref == null) { setState(() => _status = 'Choose a package and start checkout first.'); return; }
+    final idController = TextEditingController();
+    final transactionId = await showDialog<String>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Verify payment'),
+        content: TextField(controller: idController, keyboardType: TextInputType.number, decoration: const InputDecoration(labelText: 'Flutterwave transaction ID', hintText: 'Enter the ID from your payment receipt')),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
+          FilledButton(onPressed: () => Navigator.pop(context, idController.text.trim()), child: const Text('Verify')),
+        ],
+      ),
+    );
+    idController.dispose();
+    if (transactionId == null || transactionId.isEmpty) return;
+    setState(() { _busy = true; _status = 'Verifying payment with Flutterwave…'; });
+    try {
+      final response = await Supabase.instance.client.functions.invoke('provider-gateway', body: {
+        'action': 'credit-purchase-verify', 'tx_ref': ref, 'transaction_id': transactionId,
+      });
+      final data = _decodeBody(jsonEncode(response.data));
+      if (response.status < 200 || response.status >= 300) throw Exception(_errorFrom(data, response.status));
+      if (mounted) setState(() { _status = 'Payment verified. ${data['credits_added'] ?? _selectedCredits} credits added.'; _pendingRef = null; });
+    } catch (e) {
+      if (mounted) setState(() => _status = _cleanError(e));
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  Future<int?> _balance() async {
+    final user = Supabase.instance.client.auth.currentUser;
+    if (user == null) return null;
+    final row = await Supabase.instance.client.from('generation_credits').select('balance').eq('user_id', user.id).maybeSingle();
+    return row == null ? null : (row['balance'] as num).toInt();
+  }
+
+  @override
+  Widget build(BuildContext context) => Scaffold(
+    appBar: AppBar(title: const Text('Top up credits')),
+    body: ListView(padding: const EdgeInsets.all(16), children: [
+      Card(child: Padding(padding: const EdgeInsets.all(18), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        const Text('Your available credits', style: TextStyle(color: Colors.white60)),
+        const SizedBox(height: 8),
+        FutureBuilder<int?>(future: _balance(), builder: (context, snapshot) => Text(snapshot.data == null ? '— credits' : '${snapshot.data} credits', style: const TextStyle(fontSize: 28, fontWeight: FontWeight.w900, color: Color(0xFF00EFFF)))),
+        const SizedBox(height: 6),
+        const Text('Secure checkout powered by Flutterwave.', style: TextStyle(color: Colors.white60)),
+      ]))),
+      const SizedBox(height: 12),
+      for (final package in packages) Card(child: ListTile(
+        leading: const CircleAvatar(backgroundColor: Color(0xFF123C70), child: Icon(Icons.bolt, color: Color(0xFF00EFFF))),
+        title: Text('${package.credits} credits', style: const TextStyle(fontWeight: FontWeight.bold)),
+        subtitle: Text('${package.label} package'),
+        trailing: FilledButton(onPressed: _busy ? null : () => _buy(package), child: Text('₦${package.priceNaira}')),
+      )),
+      if (_pendingRef != null) ...[
+        const SizedBox(height: 8),
+        FilledButton.icon(onPressed: _busy ? null : _verify, icon: const Icon(Icons.verified_outlined), label: const Text('Verify payment')),
+      ],
+      if (_busy) const Padding(padding: EdgeInsets.all(12), child: Center(child: CircularProgressIndicator())),
+      if (_status.isNotEmpty) Padding(padding: const EdgeInsets.only(top: 12), child: SelectableText(_status, style: const TextStyle(color: Color(0xFFB9ABFF)))),
+    ]),
   );
 }
 
@@ -256,6 +382,7 @@ class _HomeScreenState extends State<HomeScreen> {
             ),
             icon: const Icon(Icons.settings_outlined),
           ),
+          IconButton(tooltip: 'Top up credits', onPressed: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const TopUpScreen())), icon: const Icon(Icons.add_card_outlined, color: Color(0xFF00EFFF))),
           const SizedBox(width: 4),
         ],
       ),
