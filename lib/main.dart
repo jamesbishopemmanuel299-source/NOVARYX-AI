@@ -392,6 +392,77 @@ extension GenerationKindInfo on GenerationKind {
       };
 }
 
+
+String _styleInstruction(GenerationKind kind, String style) {
+  switch (kind) {
+    case GenerationKind.image:
+      const styles = <String, String>{
+        'Cinematic': 'cinematic composition, dramatic lighting, rich color grading, professional visual storytelling',
+        'Photorealistic': 'photorealistic, natural textures, realistic lighting, fine detail, physically plausible scene',
+        'Anime': 'high-quality anime illustration, expressive shapes, polished linework, vibrant colors',
+        '3D Animation': 'polished 3D animated film aesthetic, expressive forms, detailed materials, studio lighting',
+        'Fantasy': 'epic fantasy concept art, magical atmosphere, intricate worldbuilding, luminous effects',
+        'Cyberpunk': 'cyberpunk neon palette, futuristic architecture, atmospheric haze, high contrast',
+        'Watercolor': 'traditional watercolor painting, pigment blooms, textured paper, soft edges',
+        'Oil Painting': 'classical oil painting, visible brushwork, layered pigments, painterly lighting',
+        'Pixel Art': 'intentional pixel art, limited palette, crisp pixel clusters, retro game composition',
+        'Comic Book': 'graphic novel illustration, bold ink contours, dynamic framing, dramatic shading',
+        'Minimalist': 'minimalist design, clean geometry, generous negative space, restrained palette',
+        'Product Photography': 'premium commercial product photography, controlled studio reflections, clean background',
+        'Portrait': 'editorial portrait photography, natural skin texture, flattering soft light, sharp eyes',
+        'Architecture': 'architectural visualization, accurate perspective, material detail, balanced composition',
+        'Logo Concept': 'simple memorable vector-style logo concept, clear silhouette, clean shapes, no mockup',
+      };
+      return styles[style] ?? styles['Cinematic']!;
+    case GenerationKind.music:
+      const styles = <String, String>{
+        'Afrobeats': 'Afrobeats groove, syncopated percussion, warm guitar, deep bass, catchy melodic hooks',
+        'Afro-piano': 'Afro-piano sound, log-drum-inspired bass, rolling percussion, bright keys, dance groove',
+        'Pop': 'modern pop production, memorable chorus, polished arrangement, clear melodic hook',
+        'Hip-Hop': 'hip-hop beat, strong rhythmic pocket, punchy drums, bass-forward production',
+        'R&B / Soul': 'smooth R&B and soul, warm chords, expressive melody, relaxed pocket, rich harmonies',
+        'Amapiano': 'Amapiano-inspired rhythm, rolling log drums, airy keys, layered percussion, spacious groove',
+        'Gospel': 'uplifting gospel arrangement, hopeful harmony, expressive choir-like backing, dynamic build',
+        'EDM / Dance': 'electronic dance production, driving pulse, layered synths, energetic drop',
+        'Jazz': 'jazz-inspired harmony, expressive instrumentation, swing feel, warm organic tone',
+        'Lo-fi': 'lo-fi chill beat, mellow chords, soft texture, relaxed drums, intimate atmosphere',
+        'Cinematic Score': 'cinematic orchestral score, evolving dynamics, emotional motifs, spacious soundstage',
+        'Rock': 'energetic rock arrangement, live drums, electric guitars, strong melodic structure',
+        'Reggae': 'laid-back reggae groove, offbeat guitar or keyboard skank, rounded bass, relaxed percussion',
+        'Classical': 'classical instrumental arrangement, expressive dynamics, nuanced orchestration',
+        'Ambient': 'ambient soundscape, slow evolution, spacious textures, immersive atmosphere',
+        'Acoustic': 'organic acoustic arrangement, natural instruments, intimate performance feel',
+      };
+      return styles[style] ?? styles['Afrobeats']!;
+    case GenerationKind.video:
+      const styles = <String, String>{
+        'Cinematic': 'cinematic film look, deliberate camera movement, coherent action, dramatic lighting, smooth motion',
+        'Photorealistic': 'photorealistic footage, natural motion, physically plausible lighting and materials',
+        'Anime': 'anime animation style, expressive motion, designed backgrounds, consistent character appearance',
+        '3D Animation': 'high-quality 3D animation, consistent models, polished materials, smooth character motion',
+        'Fantasy': 'fantasy film atmosphere, magical visual effects, epic scale, coherent scene continuity',
+        'Cyberpunk': 'neon cyberpunk atmosphere, futuristic city, reflective surfaces, atmospheric lighting',
+        'Documentary': 'documentary visual language, natural camera work, observational realism',
+        'Music Video': 'stylized music-video visuals, rhythmic edits, expressive camera moves, bold color grading',
+        'Anime Action': 'dynamic anime action choreography, readable movement, dramatic framing, consistent characters',
+        'Product Ad': 'premium product commercial, controlled camera orbit, clean lighting, clear product focus',
+        'Nature': 'nature documentary aesthetic, realistic environments, organic camera movement',
+        'Stop Motion': 'stop-motion animation aesthetic, tactile materials, handcrafted movement',
+        'Vintage Film': 'vintage film texture, subtle grain, period-inspired color, natural motion',
+        'Sci-Fi': 'science-fiction film aesthetic, futuristic technology, atmospheric scale, believable motion',
+        'Horror': 'suspenseful horror atmosphere, restrained lighting, unsettling composition, no gratuitous gore',
+        'Travel': 'travel-film aesthetic, immersive establishing shots, natural color, fluid camera movement',
+      };
+      return styles[style] ?? styles['Cinematic']!;
+  }
+}
+
+List<String> _stylesFor(GenerationKind kind) => switch (kind) {
+  GenerationKind.image => const ['Cinematic', 'Photorealistic', 'Anime', '3D Animation', 'Fantasy', 'Cyberpunk', 'Watercolor', 'Oil Painting', 'Pixel Art', 'Comic Book', 'Minimalist', 'Product Photography', 'Portrait', 'Architecture', 'Logo Concept'],
+  GenerationKind.music => const ['Afrobeats', 'Afro-piano', 'Pop', 'Hip-Hop', 'R&B / Soul', 'Amapiano', 'Gospel', 'EDM / Dance', 'Jazz', 'Lo-fi', 'Cinematic Score', 'Rock', 'Reggae', 'Classical', 'Ambient', 'Acoustic'],
+  GenerationKind.video => const ['Cinematic', 'Photorealistic', 'Anime', '3D Animation', 'Fantasy', 'Cyberpunk', 'Documentary', 'Music Video', 'Anime Action', 'Product Ad', 'Nature', 'Stop Motion', 'Vintage Film', 'Sci-Fi', 'Horror', 'Travel'],
+};
+
 class GenerationScreen extends StatefulWidget {
   const GenerationScreen({super.key, required this.kind});
   final GenerationKind kind;
@@ -404,6 +475,7 @@ class _GenerationScreenState extends State<GenerationScreen> {
   final _promptController = TextEditingController();
   bool _working = false;
   String _status = '';
+  String _selectedStyle = 'Cinematic';
   String? _resultUrl;
 
   @override
@@ -413,8 +485,9 @@ class _GenerationScreenState extends State<GenerationScreen> {
   }
 
   Future<void> _generate() async {
-    final prompt = _promptController.text.trim();
-    if (prompt.isEmpty || _working) return;
+    final rawPrompt = _promptController.text.trim();
+    if (rawPrompt.isEmpty || _working) return;
+    final prompt = 'Style: $_selectedStyle. ${_styleInstruction(widget.kind, _selectedStyle)}\n\nUser prompt: $rawPrompt';
     setState(() {
       _working = true;
       _status = 'Submitting task to Kie.ai…';
@@ -501,6 +574,17 @@ class _GenerationScreenState extends State<GenerationScreen> {
             Text(kind.description, style: const TextStyle(color: Colors.white70)),
           ]),
         ),
+        const SizedBox(height: 24),
+        Text('Choose a style', style: Theme.of(context).textTheme.titleMedium),
+        const SizedBox(height: 10),
+        Wrap(spacing: 8, runSpacing: 8, children: _stylesFor(kind).map((style) => ChoiceChip(
+          label: Text(style),
+          selected: _selectedStyle == style,
+          onSelected: _working ? null : (_) => setState(() => _selectedStyle = style),
+          selectedColor: const Color(0xFF123D72),
+          side: BorderSide(color: _selectedStyle == style ? const Color(0xFF00EFFF) : const Color(0xFF244A82)),
+          labelStyle: TextStyle(color: _selectedStyle == style ? const Color(0xFF00EFFF) : Colors.white70),
+        )).toList()),
         const SizedBox(height: 24),
         Text('Describe what you want', style: Theme.of(context).textTheme.titleMedium),
         const SizedBox(height: 10),
