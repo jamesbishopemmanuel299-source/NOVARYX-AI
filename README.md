@@ -79,3 +79,16 @@ Before using History, apply `supabase/migrations/20261022000000_generation_histo
 3. Sign in to NOVARYX-AI, then open **History**. Pull down to refresh.
 
 Only text responses and provider result URLs are stored; the generated media itself remains hosted by the provider. History is not available until the database migration has been applied.
+
+
+## Generation credits
+
+New accounts receive **50 starter credits** after the generation-credits migration is applied. Each signed-in AI request is charged by the server:
+- Groq chat: 1 credit per request
+- Kie.ai image: 3 credits
+- Kie.ai music: 5 credits
+- Kie.ai video: 8 credits
+
+Credits are stored per user in Supabase. The provider gateway deducts them using an atomic database function so concurrent requests cannot spend the same balance twice. The balance badge in the app bar can be tapped to refresh. These are starter credits only; paid top-ups are not implemented yet.
+
+Apply `supabase/migrations/20261022010000_generation_credits.sql` in the [Supabase SQL Editor](https://supabase.com/dashboard/project/vihbsfrwnslnmheowkhy/sql/new), then redeploy the `provider-gateway` Edge Function so credit checks are active. Existing accounts are initialized with 50 credits if they do not already have a credit row. Do not treat the displayed balance as proof of payment.
