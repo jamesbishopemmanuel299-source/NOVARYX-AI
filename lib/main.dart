@@ -869,8 +869,10 @@ class _GenerationScreenState extends State<GenerationScreen> {
   String _selectedStyle = 'Cinematic';
   String _selectedRatio = '16:9';
   String _generationMode = 'Text to image';
-  final _referenceImageController = TextEditingController();
-  final _referenceVideoController = TextEditingController();
+  String? _referenceImagePath;
+  String? _referenceImageName;
+  String? _referenceVideoPath;
+  String? _referenceVideoName;
   final AudioRecorder _voiceRecorder = AudioRecorder();
   String _voiceMode = 'AI voice';
   String? _voiceFilePath;
@@ -889,8 +891,6 @@ class _GenerationScreenState extends State<GenerationScreen> {
   @override
   void dispose() {
     _promptController.dispose();
-    _referenceImageController.dispose();
-    _referenceVideoController.dispose();
     _voiceRecorder.dispose();
     super.dispose();
   }
@@ -1020,17 +1020,72 @@ class _GenerationScreenState extends State<GenerationScreen> {
     return signed;
   }
 
+  Future<void> _pickReferenceImage() async {
+    try {
+      final picked = await FilePicker.platform.pickFiles(
+        type: FileType.image,
+        withData: false,
+      );
+      if (picked == null || picked.files.single.path == null) return;
+      setState(() {
+        _referenceImagePath = picked.files.single.path;
+        _referenceImageName = picked.files.single.name;
+        _status = 'Reference image selected. It will upload when you generate.';
+      });
+    } catch (e) {
+      if (mounted) setState(() => _status = 'Could not select image: ${_cleanError(e)}');
+    }
+  }
+
+  Future<void> _pickReferenceVideo() async {
+    try {
+      final picked = await FilePicker.platform.pickFiles(
+        type: FileType.video,
+        withData: false,
+      );
+      if (picked == null || picked.files.single.path == null) return;
+      setState(() {
+        _referenceVideoPath = picked.files.single.path;
+        _referenceVideoName = picked.files.single.name;
+        _status = 'Source video selected. It will upload when you generate.';
+      });
+    } catch (e) {
+      if (mounted) setState(() => _status = 'Could not select video: ${_cleanError(e)}');
+    }
+  }
+
+  Future<String> _uploadReferenceFile(String path, String mediaKind) async {
+    final user = Supabase.instance.client.auth.currentUser;
+    if (user == null) throw Exception('Sign in before uploading a reference file.');
+    final file = File(path);
+    if (!await file.exists()) throw Exception('The selected $mediaKind file is unavailable. Select it again.');
+    final bytes = await file.readAsBytes();
+    if (bytes.isEmpty) throw Exception('The selected $mediaKind file is empty.');
+    final maxBytes = mediaKind == 'video' ? 100 * 1024 * 1024 : 25 * 1024 * 1024;
+    if (bytes.length > maxBytes) {
+      throw Exception('$mediaKind files must be ${mediaKind == 'video' ? '100 MB' : '25 MB'} or smaller.');
+    }
+    final extension = path.split('.').last.toLowerCase().replaceAll(RegExp(r'[^a-z0-9]'), '');
+    final objectPath = '${user.id}/references/$mediaKind/${DateTime.now().millisecondsSinceEpoch}.${extension.isEmpty ? (mediaKind == 'video' ? 'mp4' : 'jpg') : extension}';
+    final storage = Supabase.instance.client.storage.from('user-assets');
+    await storage.uploadBinary(objectPath, bytes, fileOptions: const FileOptions(upsert: true));
+    return storage.createSignedUrl(objectPath, 3600);
+  }
+
   Future<void> _generate() async {
     final rawPrompt = _promptController.text.trim();
     if (rawPrompt.isEmpty || _working) return;
-    final referenceImage = _referenceImageController.text.trim();
-    final referenceVideo = _referenceVideoController.text.trim();
-    if (widget.kind == GenerationKind.video && _generationMode == 'Video to video' && referenceVideo.isEmpty) {
-      setState(() => _status = 'Enter a publicly accessible source video URL for video-to-video generation.');
+    final needsReferenceVideo = widget.kind == GenerationKind.video && _generationMode == 'Video to video';
+    final needsReferenceImage = widget.kind != GenerationKind.music &&
+        _generationMode != 'Text to image' &&
+        _generationMode != 'Text to video' &&
+        _generationMode != 'Video to video';
+    if (needsReferenceVideo && _referenceVideoPath == null) {
+      setState(() => _status = 'Choose a source video file for video-to-video generation.');
       return;
     }
-    if (widget.kind != GenerationKind.music && _generationMode != 'Text to image' && _generationMode != 'Text to video' && _generationMode != 'Video to video' && referenceImage.isEmpty) {
-      setState(() => _status = 'Enter a publicly accessible image URL for image-based generation.');
+    if (needsReferenceImage && _referenceImagePath == null) {
+      setState(() => _status = 'Choose a reference image file for this generation mode.');
       return;
     }
     final ratioPrompt = widget.kind == GenerationKind.music ? '' : '\nAspect ratio: $_selectedRatio. Compose the scene for this frame shape; do not add borders or letterboxing.';
@@ -1048,6 +1103,12 @@ class _GenerationScreenState extends State<GenerationScreen> {
         throw Exception('Sign in to your Supabase account in Settings before using AI services.');
       }
       final voiceUrl = widget.kind == GenerationKind.music && _voiceMode != 'AI voice' ? await _uploadVoiceAndGetUrl() : null;
+      final referenceImageUrl = needsReferenceImage && _referenceImagePath != null
+          ? await _uploadReferenceFile(_referenceImagePath!, 'image')
+          : null;
+      final referenceVideoUrl = needsReferenceVideo && _referenceVideoPath != null
+          ? await _uploadReferenceFile(_referenceVideoPath!, 'video')
+          : null;
       final createResponse = await Supabase.instance.client.functions
           .invoke('provider-gateway', body: {
             'action': 'kie-create',
@@ -1055,9 +1116,9 @@ class _GenerationScreenState extends State<GenerationScreen> {
             'model': model,
             'prompt': prompt,
             if (voiceUrl != null) 'audioUrl': voiceUrl,
-            if (widget.kind == GenerationKind.image && _generationMode == 'Image to image') 'imageUrl': referenceImage,
-            if (widget.kind == GenerationKind.video && _generationMode == 'Image to video') 'imageUrl': referenceImage,
-            if (widget.kind == GenerationKind.video && _generationMode == 'Video to video') 'videoUrl': referenceVideo,
+            if (widget.kind == GenerationKind.image && _generationMode == 'Image to image' && referenceImageUrl != null) 'imageUrl': referenceImageUrl,
+            if (widget.kind == GenerationKind.video && _generationMode == 'Image to video' && referenceImageUrl != null) 'imageUrl': referenceImageUrl,
+            if (widget.kind == GenerationKind.video && _generationMode == 'Video to video' && referenceVideoUrl != null) 'videoUrl': referenceVideoUrl,
             if (widget.kind != GenerationKind.music) 'aspectRatio': _selectedRatio,
           })
           .timeout(const Duration(seconds: 60));
@@ -1155,29 +1216,45 @@ class _GenerationScreenState extends State<GenerationScreen> {
           )).toList()),
           if (_generationMode == 'Video to video') ...[
             const SizedBox(height: 12),
-            TextField(
-              controller: _referenceVideoController,
-              keyboardType: TextInputType.url,
-              decoration: const InputDecoration(
-                labelText: 'Source video URL',
-                hintText: 'https://example.com/video.mp4',
-                helperText: 'Use a publicly accessible video URL supported by your selected Kie.ai model.',
-                prefixIcon: Icon(Icons.video_file_outlined),
-              ),
+            OutlinedButton.icon(
+              onPressed: _working ? null : _pickReferenceVideo,
+              icon: const Icon(Icons.video_library_outlined),
+              label: const Text('Choose source video'),
             ),
+            if (_referenceVideoName != null) ...[
+              ListTile(
+                contentPadding: EdgeInsets.zero,
+                leading: const Icon(Icons.video_file_outlined, color: Color(0xFF00EFFF)),
+                title: Text(_referenceVideoName!, maxLines: 2, overflow: TextOverflow.ellipsis),
+                trailing: IconButton(
+                  tooltip: 'Remove selected video',
+                  onPressed: _working ? null : () => setState(() { _referenceVideoPath = null; _referenceVideoName = null; }),
+                  icon: const Icon(Icons.close),
+                ),
+              ),
+              const Text('Video files up to 100 MB. Upload happens securely when you generate.', style: TextStyle(color: Colors.white54, fontSize: 12)),
+            ],
           ],
           if (_generationMode != 'Text to image' && _generationMode != 'Text to video' && _generationMode != 'Video to video') ...[
             const SizedBox(height: 12),
-            TextField(
-              controller: _referenceImageController,
-              keyboardType: TextInputType.url,
-              decoration: const InputDecoration(
-                labelText: 'Reference image URL',
-                hintText: 'https://example.com/image.jpg',
-                helperText: 'Use a publicly accessible image URL supported by your selected Kie.ai model.',
-                prefixIcon: Icon(Icons.image_search),
-              ),
+            OutlinedButton.icon(
+              onPressed: _working ? null : _pickReferenceImage,
+              icon: const Icon(Icons.add_photo_alternate_outlined),
+              label: const Text('Choose reference image'),
             ),
+            if (_referenceImageName != null) ...[
+              ListTile(
+                contentPadding: EdgeInsets.zero,
+                leading: const Icon(Icons.image_outlined, color: Color(0xFF00EFFF)),
+                title: Text(_referenceImageName!, maxLines: 2, overflow: TextOverflow.ellipsis),
+                trailing: IconButton(
+                  tooltip: 'Remove selected image',
+                  onPressed: _working ? null : () => setState(() { _referenceImagePath = null; _referenceImageName = null; }),
+                  icon: const Icon(Icons.close),
+                ),
+              ),
+              const Text('Image files up to 25 MB. Upload happens securely when you generate.', style: TextStyle(color: Colors.white54, fontSize: 12)),
+            ],
           ],
           const SizedBox(height: 22),
         ],
