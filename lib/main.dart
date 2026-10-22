@@ -78,6 +78,50 @@ class NovaryxApp extends StatelessWidget {
   }
 }
 
+
+class CreditsBalanceBadge extends StatefulWidget {
+  const CreditsBalanceBadge({super.key});
+  @override
+  State<CreditsBalanceBadge> createState() => _CreditsBalanceBadgeState();
+}
+class _CreditsBalanceBadgeState extends State<CreditsBalanceBadge> {
+  late Future<int?> _balance;
+  @override
+  void initState() { super.initState(); _balance = _load(); }
+  Future<int?> _load() async {
+    final client = Supabase.instance.client;
+    final user = client.auth.currentUser;
+    if (user == null) return null;
+    try {
+      final row = await client.from('generation_credits').select('balance').eq('user_id', user.id).maybeSingle();
+      return row == null ? null : (row['balance'] as num).toInt();
+    } catch (_) { return null; }
+  }
+  @override
+  Widget build(BuildContext context) => FutureBuilder<int?>(
+    future: _balance,
+    builder: (context, snapshot) => InkWell(
+      borderRadius: BorderRadius.circular(30),
+      onTap: () => setState(() => _balance = _load()),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 8),
+        decoration: BoxDecoration(
+          color: const Color(0xFF092543),
+          borderRadius: BorderRadius.circular(30),
+          border: Border.all(color: const Color(0xFF00EFFF).withValues(alpha: 0.65)),
+        ),
+        child: Row(mainAxisSize: MainAxisSize.min, children: [
+          const Icon(Icons.bolt, color: Color(0xFF00EFFF), size: 18),
+          const SizedBox(width: 4),
+          Text(snapshot.connectionState == ConnectionState.waiting ? '…' :
+            snapshot.data == null ? 'Credits' : '${snapshot.data}',
+            style: const TextStyle(color: Color(0xFFF4FAFF), fontWeight: FontWeight.w800)),
+        ]),
+      ),
+    ),
+  );
+}
+
 class ProviderSettings {
   static const storage = FlutterSecureStorage();
   static const groqKey = 'groq_api_key';
@@ -203,6 +247,7 @@ class _HomeScreenState extends State<HomeScreen> {
           ],
         ),
         actions: [
+          const Padding(padding: EdgeInsets.symmetric(vertical: 8), child: CreditsBalanceBadge()),
           IconButton(
             tooltip: 'Settings',
             onPressed: () => Navigator.of(context).push(
@@ -384,6 +429,7 @@ class _GenerationScreenState extends State<GenerationScreen> {
       final createResponse = await Supabase.instance.client.functions
           .invoke('provider-gateway', body: {
             'action': 'kie-create',
+            'generationKind': widget.kind.name,
             'model': model,
             'prompt': prompt,
           })
