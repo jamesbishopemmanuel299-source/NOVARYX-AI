@@ -30,6 +30,9 @@ jobs:
       - name: Install dependencies
         run: flutter pub get
 
+      - name: Apply the committed NOVARYX launcher artwork
+        run: dart run flutter_launcher_icons
+
       - name: Enable Android code and resource shrinking
         shell: bash
         run: |
