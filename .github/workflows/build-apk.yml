@@ -51,6 +51,34 @@ jobs:
       - name: Install dependencies
         run: flutter pub get
 
+      - name: Patch cached Flutter plugins to compile with Android SDK 36
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          import re
+          root = Path.home() / ".pub-cache" / "hosted" / "pub.dev"
+          changed = []
+          if root.exists():
+              for path in root.glob("*/android/build.gradle*"):
+                  try:
+                      source = path.read_text()
+                  except (OSError, UnicodeError):
+                      continue
+                  updated = source
+                  updated = re.sub(r'(?m)^(\s*compileSdkVersion\s+)\d+', r'\g<1>36', updated)
+                  updated = re.sub(r'(?m)^(\s*compileSdk\s*=\s*)\d+', r'\g<1>36', updated)
+                  updated = re.sub(r'(?m)^(\s*compileSdk\s+)\d+', r'\g<1>36', updated)
+                  updated = updated.replace('compileSdkVersion flutter.compileSdkVersion', 'compileSdkVersion 36')
+                  updated = updated.replace('compileSdk = flutter.compileSdkVersion', 'compileSdk = 36')
+                  if updated != source:
+                      path.write_text(updated)
+                      changed.append(str(path))
+          print(f"Patched {len(changed)} cached plugin Gradle files for compile SDK 36")
+          for path in changed:
+              print(path)
+          PY
+
       - name: Apply the committed NOVARYX launcher artwork
         run: dart run flutter_launcher_icons
 
