@@ -30,7 +30,7 @@ Future<void> main() async {
     await Supabase.initialize(
       url: defaultSupabaseUrl,
       anonKey: defaultSupabasePublishableKey,
-    ).timeout(const Duration(seconds: 12));
+    ).timeout(const Duration(seconds: 1));
   } catch (error, stackTrace) {
     debugPrint('NOVARYX-AI Supabase startup initialization failed: $error');
     debugPrintStack(stackTrace: stackTrace);
