@@ -318,6 +318,168 @@ class ProviderSettings {
   }
 }
 
+
+class LoginScreen extends StatefulWidget {
+  const LoginScreen({super.key});
+  @override
+  State<LoginScreen> createState() => _LoginScreenState();
+}
+
+class _LoginScreenState extends State<LoginScreen> {
+  final _emailController = TextEditingController();
+  final _passwordController = TextEditingController();
+  bool _creatingAccount = false;
+  bool _busy = false;
+  String? _exactError;
+  String? _errorType;
+
+  @override
+  void dispose() {
+    _emailController.dispose();
+    _passwordController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _authenticate() async {
+    final email = _emailController.text.trim();
+    final password = _passwordController.text;
+    if (email.isEmpty || password.isEmpty) {
+      setState(() {
+        _errorType = 'InputValidation';
+        _exactError = 'Enter both your email address and password.';
+      });
+      return;
+    }
+    if (!Supabase.instance.isInitialized) {
+      setState(() {
+        _errorType = 'SupabaseInitialization';
+        _exactError = 'Supabase is not initialized. Check SUPABASE_URL and SUPABASE_PUBLISHABLE_KEY in the APK build configuration, then rebuild.';
+      });
+      return;
+    }
+    setState(() { _busy = true; _exactError = null; _errorType = null; });
+    try {
+      if (_creatingAccount) {
+        await Supabase.instance.client.auth.signUp(email: email, password: password)
+            .timeout(const Duration(seconds: 30));
+      } else {
+        await Supabase.instance.client.auth.signInWithPassword(email: email, password: password)
+            .timeout(const Duration(seconds: 30));
+      }
+      if (!mounted) return;
+      if (Supabase.instance.client.auth.currentSession != null) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Signed in successfully.')),
+        );
+        Navigator.of(context).pop();
+      } else if (_creatingAccount) {
+        setState(() {
+          _errorType = 'EmailConfirmationRequired';
+          _exactError = 'Account creation returned no active session. Check your email for a confirmation link if email confirmation is enabled in Supabase.';
+        });
+      }
+    } catch (error, stackTrace) {
+      debugPrint('NOVARYX-AI login error type: ${error.runtimeType}');
+      debugPrint('NOVARYX-AI login exact error: $error');
+      debugPrintStack(stackTrace: stackTrace);
+      if (!mounted) return;
+      setState(() {
+        _errorType = error.runtimeType.toString();
+        _exactError = error.toString();
+      });
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(title: const Text('NOVARYX account')),
+      body: ListView(
+        padding: const EdgeInsets.all(20),
+        children: [
+          const Icon(Icons.lock_person_outlined, size: 56, color: Color(0xFF00EFFF)),
+          const SizedBox(height: 14),
+          Text(_creatingAccount ? 'Create your account' : 'Sign in',
+              textAlign: TextAlign.center,
+              style: const TextStyle(fontSize: 25, fontWeight: FontWeight.w800)),
+          const SizedBox(height: 8),
+          const Text('If authentication fails, the original exception details appear below.',
+              textAlign: TextAlign.center, style: TextStyle(color: Colors.white60)),
+          const SizedBox(height: 24),
+          TextField(
+            controller: _emailController,
+            keyboardType: TextInputType.emailAddress,
+            autofillHints: const [AutofillHints.email],
+            enabled: !_busy,
+            decoration: const InputDecoration(labelText: 'Email address', prefixIcon: Icon(Icons.email_outlined)),
+          ),
+          const SizedBox(height: 12),
+          TextField(
+            controller: _passwordController,
+            obscureText: true,
+            autofillHints: const [AutofillHints.password],
+            enabled: !_busy,
+            decoration: const InputDecoration(labelText: 'Password', prefixIcon: Icon(Icons.lock_outline)),
+          ),
+          const SizedBox(height: 16),
+          FilledButton(
+            onPressed: _busy ? null : _authenticate,
+            child: Padding(
+              padding: const EdgeInsets.symmetric(vertical: 12),
+              child: _busy
+                  ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2))
+                  : Text(_creatingAccount ? 'Create account' : 'Sign in'),
+            ),
+          ),
+          TextButton(
+            onPressed: _busy ? null : () => setState(() {
+              _creatingAccount = !_creatingAccount;
+              _exactError = null;
+              _errorType = null;
+            }),
+            child: Text(_creatingAccount ? 'Already have an account? Sign in' : 'New to NOVARYX? Create an account'),
+          ),
+          if (_exactError != null) ...[
+            const SizedBox(height: 18),
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(14),
+              decoration: BoxDecoration(
+                color: const Color(0xFF35131D),
+                border: Border.all(color: const Color(0xFFFF647C)),
+                borderRadius: BorderRadius.circular(14),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Row(children: [
+                    Icon(Icons.error_outline, color: Color(0xFFFF647C)),
+                    SizedBox(width: 8),
+                    Expanded(child: Text('LOGIN ERROR — EXACT DETAILS',
+                      style: TextStyle(color: Color(0xFFFF8798), fontWeight: FontWeight.w800))),
+                  ]),
+                  const SizedBox(height: 10),
+                  Text('Error type: ${_errorType ?? 'Unknown'}'),
+                  const SizedBox(height: 6),
+                  SelectableText(_exactError!, style: const TextStyle(color: Colors.white)),
+                  const SizedBox(height: 12),
+                  OutlinedButton.icon(
+                    onPressed: _busy ? null : _authenticate,
+                    icon: const Icon(Icons.refresh),
+                    label: const Text('Retry'),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
 
@@ -463,6 +625,7 @@ class _HomeScreenState extends State<HomeScreen> {
           ],
         ),
         actions: [
+          IconButton(tooltip: 'Sign in / account', onPressed: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const LoginScreen())), icon: const Icon(Icons.account_circle_outlined, color: Color(0xFF00EFFF))),
           const Padding(padding: EdgeInsets.symmetric(vertical: 8), child: CreditsBalanceBadge()),
           IconButton(tooltip: 'Top up credits', onPressed: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const TopUpScreen())), icon: const Icon(Icons.add_card_outlined, color: Color(0xFF00EFFF))),
           const SizedBox(width: 4),
