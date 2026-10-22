@@ -29,7 +29,7 @@ class NovaryxApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    const seed = Color(0xFF7C5CFF);
+    const seed = Color(0xFF176BFF);
     return MaterialApp(
       title: 'NOVARYX-AI',
       debugShowCheckedModeBanner: false,
@@ -37,12 +37,40 @@ class NovaryxApp extends StatelessWidget {
         colorScheme: ColorScheme.fromSeed(
           seedColor: seed,
           brightness: Brightness.dark,
-          surface: const Color(0xFF121426),
+          surface: const Color(0xFF080D24),
+          primary: const Color(0xFF00EFFF),
+          secondary: const Color(0xFFB33CFF),
         ),
-        scaffoldBackgroundColor: const Color(0xFF0B0D19),
+        scaffoldBackgroundColor: const Color(0xFF030716),
+        appBarTheme: const AppBarTheme(
+          backgroundColor: Color(0xFF05091B),
+          foregroundColor: Color(0xFFF4FAFF),
+          elevation: 0,
+          centerTitle: false,
+        ),
+        navigationBarTheme: NavigationBarThemeData(
+          backgroundColor: const Color(0xFF05091B),
+          indicatorColor: const Color(0xFF123C70),
+          labelTextStyle: WidgetStateProperty.resolveWith((states) => TextStyle(
+            color: states.contains(WidgetState.selected) ? const Color(0xFF00EFFF) : const Color(0xFF8493B8),
+            fontWeight: states.contains(WidgetState.selected) ? FontWeight.w700 : FontWeight.w500,
+          )),
+        ),
+        cardTheme: CardThemeData(
+          color: const Color(0xFF0A1230),
+          elevation: 0,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(18),
+            side: const BorderSide(color: Color(0xFF173568)),
+          ),
+        ),
         useMaterial3: true,
-        inputDecorationTheme: const InputDecorationTheme(
-          border: OutlineInputBorder(),
+        inputDecorationTheme: InputDecorationTheme(
+          filled: true,
+          fillColor: const Color(0xFF080F28),
+          border: OutlineInputBorder(borderRadius: BorderRadius.circular(16), borderSide: const BorderSide(color: Color(0xFF244A82))),
+          enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(16), borderSide: const BorderSide(color: Color(0xFF244A82))),
+          focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(16), borderSide: const BorderSide(color: Color(0xFF00EFFF), width: 1.5)),
         ),
       ),
       home: const HomeScreen(),
@@ -169,9 +197,9 @@ class _HomeScreenState extends State<HomeScreen> {
         titleSpacing: 18,
         title: const Row(
           children: [
-            Icon(Icons.auto_awesome, color: Color(0xFFAC9AFF)),
+            Icon(Icons.auto_awesome, color: Color(0xFF00EFFF)),
             SizedBox(width: 10),
-            Text('NOVARYX-AI', style: TextStyle(fontWeight: FontWeight.w800, letterSpacing: 0.4)),
+            Text('NOVARYX', style: TextStyle(fontWeight: FontWeight.w900, letterSpacing: 1.6, color: Color(0xFFF4FAFF))),
           ],
         ),
         actions: [
@@ -242,7 +270,7 @@ class _HomeScreenState extends State<HomeScreen> {
                         margin: const EdgeInsets.symmetric(vertical: 6),
                         padding: const EdgeInsets.all(13),
                         decoration: BoxDecoration(
-                          color: isUser ? const Color(0xFF5140A8) : const Color(0xFF1A1D31),
+                          color: isUser ? const Color(0xFF123D72) : const Color(0xFF0A1230),
                           borderRadius: BorderRadius.circular(16),
                         ),
                         child: SelectableText(message.text),
@@ -267,7 +295,7 @@ class _HomeScreenState extends State<HomeScreen> {
                     decoration: InputDecoration(
                       hintText: 'Message NOVARYX...',
                       filled: true,
-                      fillColor: const Color(0xFF171A2B),
+                      fillColor: const Color(0xFF080F28),
                       contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 13),
                       border: OutlineInputBorder(borderRadius: BorderRadius.circular(24), borderSide: BorderSide.none),
                     ),
@@ -417,10 +445,10 @@ class _GenerationScreenState extends State<GenerationScreen> {
           padding: const EdgeInsets.all(20),
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(22),
-            gradient: const LinearGradient(colors: [Color(0xFF342568), Color(0xFF171A32)]),
+            gradient: const LinearGradient(begin: Alignment.topLeft, end: Alignment.bottomRight, colors: [Color(0xFF064C75), Color(0xFF10215A), Color(0xFF34105D)]),
           ),
           child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Icon(kind.icon, size: 36, color: const Color(0xFFC4B6FF)),
+            Icon(kind.icon, size: 36, color: const Color(0xFF67EFFF)),
             const SizedBox(height: 16),
             Text('${kind.label} generation', style: const TextStyle(fontSize: 25, fontWeight: FontWeight.bold)),
             const SizedBox(height: 8),
@@ -456,7 +484,7 @@ class _GenerationScreenState extends State<GenerationScreen> {
           const SizedBox(height: 18),
           Container(
             padding: const EdgeInsets.all(14),
-            decoration: BoxDecoration(color: const Color(0xFF171A2B), borderRadius: BorderRadius.circular(14)),
+            decoration: BoxDecoration(color: const Color(0xFF0A1230), borderRadius: BorderRadius.circular(14)),
             child: Text(_status),
           ),
         ],
@@ -640,7 +668,7 @@ class _GenerationHistoryScreenState extends State<GenerationHistoryScreen> {
                   padding: const EdgeInsets.all(14),
                   child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                     Row(children: [
-                      Icon(icon, color: const Color(0xFFAC9AFF)),
+                      Icon(icon, color: const Color(0xFF00EFFF)),
                       const SizedBox(width: 8),
                       Expanded(child: Text(kind.toUpperCase(),
                           style: const TextStyle(fontWeight: FontWeight.bold))),
