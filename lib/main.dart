@@ -23,20 +23,21 @@ final String defaultSupabasePublishableKey = _supabaseKeyFromBuild.isEmpty
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  // Do not let a slow or temporarily unavailable backend keep Android on
-  // the launch screen indefinitely. The app can open and show its UI while
-  // backend initialization is attempted.
+  // Show Flutter's first frame immediately instead of waiting for backend
+  // initialization. A slow backend should not hold the Android launch screen.
+  runApp(const NovaryxApp());
+
+  // Initialize Supabase in the background and bound the wait time.
   try {
     await Supabase.initialize(
       url: defaultSupabaseUrl,
       anonKey: defaultSupabasePublishableKey,
     ).timeout(const Duration(seconds: 10));
+    debugPrint('NOVARYX-AI Supabase initialization completed.');
   } catch (error, stackTrace) {
     debugPrint('NOVARYX-AI Supabase startup initialization failed: $error');
     debugPrintStack(stackTrace: stackTrace);
   }
-
-  runApp(const NovaryxApp());
 }
 
 class NovaryxApp extends StatelessWidget {
