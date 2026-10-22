@@ -163,7 +163,7 @@ class _TopUpScreenState extends State<TopUpScreen> {
     try {
       final response = await client.functions.invoke('provider-gateway', body: {
         'action': 'credit-purchase-initialize', 'credits': package.credits,
-        'redirect_url': 'https://novaryx-ai-payment.invalid/return', 'email': user.email,
+        'email': user.email,
       });
       final data = _decodeBody(jsonEncode(response.data));
       if (response.status < 200 || response.status >= 300) throw Exception(_errorFrom(data, response.status));
