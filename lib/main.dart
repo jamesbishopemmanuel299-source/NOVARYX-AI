@@ -479,12 +479,14 @@ class _GenerationScreenState extends State<GenerationScreen> {
   String _selectedRatio = '16:9';
   String _generationMode = 'Text to image';
   final _referenceImageController = TextEditingController();
+  final _referenceVideoController = TextEditingController();
   String? _resultUrl;
 
   @override
   void dispose() {
     _promptController.dispose();
     _referenceImageController.dispose();
+    _referenceVideoController.dispose();
     super.dispose();
   }
 
@@ -492,8 +494,13 @@ class _GenerationScreenState extends State<GenerationScreen> {
     final rawPrompt = _promptController.text.trim();
     if (rawPrompt.isEmpty || _working) return;
     final referenceImage = _referenceImageController.text.trim();
-    if (widget.kind != GenerationKind.music && _generationMode != 'Text to image' && referenceImage.isEmpty) {
-      setState(() => _status = 'Enter a publicly accessible image URL for image-to-image or image-to-video generation.');
+    final referenceVideo = _referenceVideoController.text.trim();
+    if (widget.kind == GenerationKind.video && _generationMode == 'Video to video' && referenceVideo.isEmpty) {
+      setState(() => _status = 'Enter a publicly accessible source video URL for video-to-video generation.');
+      return;
+    }
+    if (widget.kind != GenerationKind.music && _generationMode != 'Text to image' && _generationMode != 'Text to video' && _generationMode != 'Video to video' && referenceImage.isEmpty) {
+      setState(() => _status = 'Enter a publicly accessible image URL for image-based generation.');
       return;
     }
     final ratioPrompt = widget.kind == GenerationKind.music ? '' : '\nAspect ratio: $_selectedRatio. Compose the scene for this frame shape; do not add borders or letterboxing.';
@@ -515,7 +522,9 @@ class _GenerationScreenState extends State<GenerationScreen> {
             'generationKind': widget.kind.name,
             'model': model,
             'prompt': prompt,
-            if (widget.kind != GenerationKind.music && _generationMode != 'Text to image') 'imageUrl': referenceImage,
+            if (widget.kind == GenerationKind.image && _generationMode == 'Image to image') 'imageUrl': referenceImage,
+            if (widget.kind == GenerationKind.video && _generationMode == 'Image to video') 'imageUrl': referenceImage,
+            if (widget.kind == GenerationKind.video && _generationMode == 'Video to video') 'videoUrl': referenceVideo,
             if (widget.kind != GenerationKind.music) 'aspectRatio': _selectedRatio,
           })
           .timeout(const Duration(seconds: 60));
@@ -591,7 +600,7 @@ class _GenerationScreenState extends State<GenerationScreen> {
           const SizedBox(height: 10),
           Wrap(spacing: 8, runSpacing: 8, children: (kind == GenerationKind.image
               ? const ['Text to image', 'Image to image']
-              : const ['Text to video', 'Image to video']).map((mode) => ChoiceChip(
+              : const ['Text to video', 'Image to video', 'Video to video']).map((mode) => ChoiceChip(
             label: Text(mode),
             selected: _generationMode == mode,
             onSelected: _working ? null : (_) => setState(() => _generationMode = mode),
@@ -599,7 +608,20 @@ class _GenerationScreenState extends State<GenerationScreen> {
             side: BorderSide(color: _generationMode == mode ? const Color(0xFF00EFFF) : const Color(0xFF244A82)),
             labelStyle: TextStyle(color: _generationMode == mode ? const Color(0xFF00EFFF) : Colors.white70),
           )).toList()),
-          if (_generationMode != 'Text to image' && _generationMode != 'Text to video') ...[
+          if (_generationMode == 'Video to video') ...[
+            const SizedBox(height: 12),
+            TextField(
+              controller: _referenceVideoController,
+              keyboardType: TextInputType.url,
+              decoration: const InputDecoration(
+                labelText: 'Source video URL',
+                hintText: 'https://example.com/video.mp4',
+                helperText: 'Use a publicly accessible video URL supported by your selected Kie.ai model.',
+                prefixIcon: Icon(Icons.video_file_outlined),
+              ),
+            ),
+          ],
+          if (_generationMode != 'Text to image' && _generationMode != 'Text to video' && _generationMode != 'Video to video') ...[
             const SizedBox(height: 12),
             TextField(
               controller: _referenceImageController,
