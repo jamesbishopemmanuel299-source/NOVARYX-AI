@@ -139,6 +139,12 @@ class _HomeScreenState extends State<HomeScreen> {
           : '';
       if (answer.isEmpty) throw Exception('The provider returned an empty answer.');
       if (mounted) setState(() => _messages.add(ChatMessage(role: 'assistant', text: answer)));
+      await GenerationHistory.save(
+        kind: 'chat',
+        prompt: prompt,
+        resultText: answer,
+        model: model,
+      );
     } catch (e) {
       if (mounted) setState(() => _messages.add(ChatMessage(
         role: 'assistant',
@@ -156,6 +162,7 @@ class _HomeScreenState extends State<HomeScreen> {
       const GenerationScreen(kind: GenerationKind.image),
       const GenerationScreen(kind: GenerationKind.music),
       const GenerationScreen(kind: GenerationKind.video),
+      const GenerationHistoryScreen(),
     ];
     return Scaffold(
       appBar: AppBar(
@@ -187,6 +194,7 @@ class _HomeScreenState extends State<HomeScreen> {
           NavigationDestination(icon: Icon(Icons.image_outlined), selectedIcon: Icon(Icons.image), label: 'Image'),
           NavigationDestination(icon: Icon(Icons.music_note_outlined), selectedIcon: Icon(Icons.music_note), label: 'Music'),
           NavigationDestination(icon: Icon(Icons.movie_outlined), selectedIcon: Icon(Icons.movie), label: 'Video'),
+          NavigationDestination(icon: Icon(Icons.history), selectedIcon: Icon(Icons.history_toggle_off), label: 'History'),
         ],
       ),
     );
@@ -382,9 +390,15 @@ class _GenerationScreenState extends State<GenerationScreen> {
         if (mounted) setState(() => _status = 'Generation in progress… (${i + 1}/60)');
       }
       if (result == null) throw Exception('No result URL received yet. Last task state: $lastState. Check your Kie.ai task history.');
+      await GenerationHistory.save(
+        kind: widget.kind.label.toLowerCase(),
+        prompt: prompt,
+        resultUrl: result,
+        model: model,
+      );
       if (mounted) setState(() {
         _resultUrl = result;
-        _status = 'Generation complete. Open the result link below.';
+        _status = 'Generation complete. Saved to History.';
       });
     } catch (e) {
       if (mounted) setState(() => _status = 'Error: ${_cleanError(e)}');
@@ -466,6 +480,200 @@ class _GenerationScreenState extends State<GenerationScreen> {
           style: TextStyle(color: Colors.white54, fontSize: 12),
         ),
       ],
+    );
+  }
+}
+
+
+class GenerationHistory {
+  static Future<void> save({
+    required String kind,
+    required String prompt,
+    String? resultText,
+    String? resultUrl,
+    String? model,
+  }) async {
+    final client = Supabase.instance.client;
+    final user = client.auth.currentUser;
+    if (user == null) return;
+    try {
+      await client.from('generation_history').insert({
+        'user_id': user.id,
+        'kind': kind,
+        'prompt': prompt,
+        'result_text': resultText,
+        'result_url': resultUrl,
+        'model': model,
+      });
+    } catch (_) {
+      // History should never interrupt a successful generation.
+    }
+  }
+}
+
+class GenerationHistoryScreen extends StatefulWidget {
+  const GenerationHistoryScreen({super.key});
+
+  @override
+  State<GenerationHistoryScreen> createState() => _GenerationHistoryScreenState();
+}
+
+class _GenerationHistoryScreenState extends State<GenerationHistoryScreen> {
+  late Future<List<Map<String, dynamic>>> _history;
+
+  @override
+  void initState() {
+    super.initState();
+    _history = _loadHistory();
+  }
+
+  Future<List<Map<String, dynamic>>> _loadHistory() async {
+    final client = Supabase.instance.client;
+    if (client.auth.currentUser == null) return [];
+    final rows = await client
+        .from('generation_history')
+        .select('id,kind,prompt,result_text,result_url,model,created_at')
+        .order('created_at', ascending: false)
+        .limit(100);
+    return (rows as List).cast<Map<String, dynamic>>();
+  }
+
+  void _refresh() {
+    setState(() => _history = _loadHistory());
+  }
+
+  Future<void> _delete(String id) async {
+    try {
+      await Supabase.instance.client
+          .from('generation_history')
+          .delete()
+          .eq('id', id);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('History item deleted.')),
+        );
+        _refresh();
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Could not delete item: ${_cleanError(e)}')),
+        );
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (Supabase.instance.client.auth.currentUser == null) {
+      return const Center(
+        child: Padding(
+          padding: EdgeInsets.all(24),
+          child: Text('Sign in from Settings to save and view your generation history.',
+              textAlign: TextAlign.center),
+        ),
+      );
+    }
+    return RefreshIndicator(
+      onRefresh: () async => _refresh(),
+      child: FutureBuilder<List<Map<String, dynamic>>>(
+        future: _history,
+        builder: (context, snapshot) {
+          if (snapshot.connectionState == ConnectionState.waiting) {
+            return const Center(child: CircularProgressIndicator());
+          }
+          if (snapshot.hasError) {
+            return ListView(
+              children: [
+                const SizedBox(height: 100),
+                const Icon(Icons.cloud_off, size: 42),
+                const SizedBox(height: 12),
+                const Center(child: Text('Could not load history.')),
+                const SizedBox(height: 8),
+                Center(child: Text(
+                  'Apply the Supabase SQL migration in the repository, then try again.',
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(color: Colors.white60),
+                )),
+                Center(child: TextButton(onPressed: _refresh, child: const Text('Retry'))),
+              ],
+            );
+          }
+          final items = snapshot.data ?? [];
+          if (items.isEmpty) {
+            return ListView(
+              children: const [
+                SizedBox(height: 120),
+                Icon(Icons.history, size: 52, color: Color(0xFFAC9AFF)),
+                SizedBox(height: 16),
+                Center(child: Text('No generation history yet.',
+                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold))),
+                SizedBox(height: 8),
+                Center(child: Text('Your successful chats, images, music, and videos will appear here.',
+                    textAlign: TextAlign.center, style: TextStyle(color: Colors.white60))),
+              ],
+            );
+          }
+          return ListView.builder(
+            padding: const EdgeInsets.all(16),
+            itemCount: items.length,
+            itemBuilder: (context, index) {
+              final item = items[index];
+              final kind = (item['kind'] ?? 'generation').toString();
+              final prompt = (item['prompt'] ?? '').toString();
+              final resultText = (item['result_text'] ?? '').toString();
+              final resultUrl = (item['result_url'] ?? '').toString();
+              final created = DateTime.tryParse((item['created_at'] ?? '').toString())?.toLocal();
+              final dateLabel = created == null ? '' :
+                  '${created.year}-${created.month.toString().padLeft(2, '0')}-${created.day.toString().padLeft(2, '0')} ${created.hour.toString().padLeft(2, '0')}:${created.minute.toString().padLeft(2, '0')}';
+              final icon = switch (kind) {
+                'chat' => Icons.chat_bubble_outline,
+                'image' => Icons.image_outlined,
+                'music' => Icons.music_note_outlined,
+                'video' => Icons.movie_outlined,
+                _ => Icons.auto_awesome,
+              };
+              return Card(
+                color: const Color(0xFF171A2B),
+                margin: const EdgeInsets.only(bottom: 12),
+                child: Padding(
+                  padding: const EdgeInsets.all(14),
+                  child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                    Row(children: [
+                      Icon(icon, color: const Color(0xFFAC9AFF)),
+                      const SizedBox(width: 8),
+                      Expanded(child: Text(kind.toUpperCase(),
+                          style: const TextStyle(fontWeight: FontWeight.bold))),
+                      IconButton(
+                        tooltip: 'Delete history item',
+                        onPressed: () => _delete(item['id'].toString()),
+                        icon: const Icon(Icons.delete_outline),
+                      ),
+                    ]),
+                    if (dateLabel.isNotEmpty)
+                      Text(dateLabel, style: const TextStyle(color: Colors.white54, fontSize: 12)),
+                    const SizedBox(height: 8),
+                    Text(prompt, maxLines: 4, overflow: TextOverflow.ellipsis),
+                    if (resultText.isNotEmpty) ...[
+                      const SizedBox(height: 10),
+                      const Text('Response', style: TextStyle(color: Colors.white60, fontWeight: FontWeight.w600)),
+                      const SizedBox(height: 4),
+                      SelectableText(resultText),
+                    ],
+                    if (resultUrl.isNotEmpty) ...[
+                      const SizedBox(height: 10),
+                      const Text('Result link', style: TextStyle(color: Colors.white60, fontWeight: FontWeight.w600)),
+                      const SizedBox(height: 4),
+                      SelectableText(resultUrl,
+                          style: const TextStyle(color: Color(0xFFB9ABFF), decoration: TextDecoration.underline)),
+                    ],
+                  ]),
+                ),
+              );
+            },
+          );
+        },
+      ),
     );
   }
 }
