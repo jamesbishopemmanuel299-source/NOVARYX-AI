@@ -92,3 +92,13 @@ New accounts receive **50 starter credits** after the generation-credits migrati
 Credits are stored per user in Supabase. The provider gateway deducts them using an atomic database function so concurrent requests cannot spend the same balance twice. The balance badge in the app bar can be tapped to refresh. These are starter credits only; paid top-ups are not implemented yet.
 
 Apply `supabase/migrations/20261022010000_generation_credits.sql` in the [Supabase SQL Editor](https://supabase.com/dashboard/project/vihbsfrwnslnmheowkhy/sql/new), then redeploy the `provider-gateway` Edge Function so credit checks are active. Existing accounts are initialized with 50 credits if they do not already have a credit row. Do not treat the displayed balance as proof of payment.
+
+
+## Generation style presets
+
+The Flutter generation screens include selectable prompt-style presets for all three media types:
+- **Images:** cinematic, photorealistic, anime, 3D animation, fantasy, cyberpunk, watercolor, oil painting, pixel art, comic book, minimalist, product photography, portrait, architecture, and logo concepts.
+- **Music:** Afrobeats, Afro-piano, pop, hip-hop, R&B/soul, Amapiano, gospel, EDM/dance, jazz, lo-fi, cinematic score, rock, reggae, classical, ambient, and acoustic.
+- **Video:** cinematic, photorealistic, anime, 3D animation, fantasy, cyberpunk, documentary, music video, anime action, product ad, nature, stop motion, vintage film, sci-fi, horror, and travel.
+
+A selected style is included in the prompt sent to Kie.ai. Actual results depend on the selected Kie.ai model and its supported capabilities; these presets guide the prompt and do not automatically add new provider models or guarantee every style on every model.
