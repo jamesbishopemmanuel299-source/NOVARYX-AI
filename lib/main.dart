@@ -385,9 +385,21 @@ class _LoginScreenState extends State<LoginScreen> {
       debugPrint('NOVARYX-AI login exact error: $error');
       debugPrintStack(stackTrace: stackTrace);
       if (!mounted) return;
+
+      // Give DNS/host-lookup failures a useful explanation without hiding the
+      // original exception. Retrying credentials cannot fix a hostname that
+      // the device cannot resolve.
+      final rawError = error.toString();
+      final lowerError = rawError.toLowerCase();
+      final isHostLookupFailure =
+          lowerError.contains('failed host lookup') ||
+          lowerError.contains('no address associated with hostname') ||
+          lowerError.contains('socketexception');
       setState(() {
         _errorType = error.runtimeType.toString();
-        _exactError = error.toString();
+        _exactError = isHostLookupFailure
+            ? '$rawError\n\nConnection diagnosis: the device could not resolve the configured Supabase hostname. Verify the Project URL in Supabase Dashboard → Project Settings → API, confirm the project is active (not paused or deleted), and ensure the URL matches exactly. The app is using: ${defaultSupabaseUrl}. This is a server/DNS connection error, not an email or password error.'
+            : rawError;
       });
     } finally {
       if (mounted) setState(() => _busy = false);
