@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:http/http.dart' as http;
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'supabase_data_store.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 const String _supabaseUrlFromBuild = String.fromEnvironment('SUPABASE_URL');
@@ -294,6 +295,38 @@ class _HomeScreenState extends State<HomeScreen> {
   final _messages = <ChatMessage>[];
   final _chatController = TextEditingController();
   bool _sending = false;
+  String? _conversationId;
+  bool _restoringChat = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _restoreChat();
+  }
+
+  Future<void> _restoreChat() async {
+    try {
+      final conversationId = await NovaryxCloudStore.createOrGetLatestConversation();
+      if (conversationId == null) {
+        if (mounted) setState(() => _restoringChat = false);
+        return;
+      }
+      final rows = await NovaryxCloudStore.loadChatMessages(conversationId);
+      if (!mounted) return;
+      setState(() {
+        _conversationId = conversationId;
+        _messages
+          ..clear()
+          ..addAll(rows.map((row) => ChatMessage(
+            role: row['role']?.toString() ?? 'assistant',
+            text: row['content']?.toString() ?? '',
+          )));
+        _restoringChat = false;
+      });
+    } catch (_) {
+      if (mounted) setState(() => _restoringChat = false);
+    }
+  }
 
   @override
   void dispose() {
@@ -310,6 +343,19 @@ class _HomeScreenState extends State<HomeScreen> {
     });
     _chatController.clear();
     try {
+      final user = Supabase.instance.client.auth.currentUser;
+      if (user == null) {
+        throw Exception('Sign in to your Supabase account in Settings before using AI services.');
+      }
+      _conversationId ??= await NovaryxCloudStore.createOrGetLatestConversation();
+      final conversationId = _conversationId;
+      if (conversationId != null) {
+        await NovaryxCloudStore.saveChatMessage(
+          conversationId: conversationId,
+          role: 'user',
+          content: prompt,
+        );
+      }
       final model = await ProviderSettings.read(
         ProviderSettings.groqModel,
         fallback: 'llama-3.3-70b-versatile',
@@ -337,6 +383,14 @@ class _HomeScreenState extends State<HomeScreen> {
           : '';
       if (answer.isEmpty) throw Exception('The provider returned an empty answer.');
       if (mounted) setState(() => _messages.add(ChatMessage(role: 'assistant', text: answer)));
+      if (conversationId != null) {
+        await NovaryxCloudStore.saveChatMessage(
+          conversationId: conversationId,
+          role: 'assistant',
+          content: answer,
+          model: model,
+        );
+      }
       await GenerationHistory.save(
         kind: 'chat',
         prompt: prompt,
@@ -748,6 +802,18 @@ class _GenerationScreenState extends State<GenerationScreen> {
         if (mounted) setState(() => _status = 'Generation in progress… (${i + 1}/60)');
       }
       if (result == null) throw Exception('No result URL received yet. Last task state: $lastState. Check your Kie.ai task history.');
+      try {
+        await NovaryxCloudStore.archiveGeneratedMedia(
+          kind: widget.kind.name,
+          prompt: prompt,
+          sourceUrl: result,
+          model: model,
+          provider: 'kie.ai',
+          providerJobId: taskId,
+        );
+      } catch (_) {
+        // Keep the successful generation visible even if archiving is temporarily unavailable.
+      }
       await GenerationHistory.save(
         kind: widget.kind.label.toLowerCase(),
         prompt: prompt,
