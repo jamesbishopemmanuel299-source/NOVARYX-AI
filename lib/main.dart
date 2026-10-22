@@ -476,18 +476,28 @@ class _GenerationScreenState extends State<GenerationScreen> {
   bool _working = false;
   String _status = '';
   String _selectedStyle = 'Cinematic';
+  String _selectedRatio = '16:9';
+  String _generationMode = 'Text to image';
+  final _referenceImageController = TextEditingController();
   String? _resultUrl;
 
   @override
   void dispose() {
     _promptController.dispose();
+    _referenceImageController.dispose();
     super.dispose();
   }
 
   Future<void> _generate() async {
     final rawPrompt = _promptController.text.trim();
     if (rawPrompt.isEmpty || _working) return;
-    final prompt = 'Style: $_selectedStyle. ${_styleInstruction(widget.kind, _selectedStyle)}\n\nUser prompt: $rawPrompt';
+    final referenceImage = _referenceImageController.text.trim();
+    if (widget.kind != GenerationKind.music && _generationMode != 'Text to image' && referenceImage.isEmpty) {
+      setState(() => _status = 'Enter a publicly accessible image URL for image-to-image or image-to-video generation.');
+      return;
+    }
+    final ratioPrompt = widget.kind == GenerationKind.music ? '' : '\nAspect ratio: $_selectedRatio. Compose the scene for this frame shape; do not add borders or letterboxing.';
+    final prompt = 'Mode: $_generationMode. Style: $_selectedStyle. ${_styleInstruction(widget.kind, _selectedStyle)}$ratioPrompt\n\nUser prompt: $rawPrompt';
     setState(() {
       _working = true;
       _status = 'Submitting task to Kie.ai…';
@@ -505,6 +515,8 @@ class _GenerationScreenState extends State<GenerationScreen> {
             'generationKind': widget.kind.name,
             'model': model,
             'prompt': prompt,
+            if (widget.kind != GenerationKind.music && _generationMode != 'Text to image') 'imageUrl': referenceImage,
+            if (widget.kind != GenerationKind.music) 'aspectRatio': _selectedRatio,
           })
           .timeout(const Duration(seconds: 60));
       final createBody = _decodeBody(jsonEncode(createResponse.data));
@@ -574,6 +586,34 @@ class _GenerationScreenState extends State<GenerationScreen> {
             Text(kind.description, style: const TextStyle(color: Colors.white70)),
           ]),
         ),
+        if (kind != GenerationKind.music) ...[
+          Text('Generation mode', style: Theme.of(context).textTheme.titleMedium),
+          const SizedBox(height: 10),
+          Wrap(spacing: 8, runSpacing: 8, children: (kind == GenerationKind.image
+              ? const ['Text to image', 'Image to image']
+              : const ['Text to video', 'Image to video']).map((mode) => ChoiceChip(
+            label: Text(mode),
+            selected: _generationMode == mode,
+            onSelected: _working ? null : (_) => setState(() => _generationMode = mode),
+            selectedColor: const Color(0xFF123D72),
+            side: BorderSide(color: _generationMode == mode ? const Color(0xFF00EFFF) : const Color(0xFF244A82)),
+            labelStyle: TextStyle(color: _generationMode == mode ? const Color(0xFF00EFFF) : Colors.white70),
+          )).toList()),
+          if (_generationMode != 'Text to image' && _generationMode != 'Text to video') ...[
+            const SizedBox(height: 12),
+            TextField(
+              controller: _referenceImageController,
+              keyboardType: TextInputType.url,
+              decoration: const InputDecoration(
+                labelText: 'Reference image URL',
+                hintText: 'https://example.com/image.jpg',
+                helperText: 'Use a publicly accessible image URL supported by your selected Kie.ai model.',
+                prefixIcon: Icon(Icons.image_search),
+              ),
+            ),
+          ],
+          const SizedBox(height: 22),
+        ],
         if (kind != GenerationKind.music) ...[
           Text('Aspect ratio', style: Theme.of(context).textTheme.titleMedium),
           const SizedBox(height: 10),
