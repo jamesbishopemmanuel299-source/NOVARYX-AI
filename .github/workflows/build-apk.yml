@@ -27,6 +27,13 @@ jobs:
             flutter create . --platforms=android --project-name novaryx_ai
           fi
 
+      - name: Convert SVG launcher artwork to PNG
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y librsvg2-bin
+          rsvg-convert -w 1024 -h 1024 assets/branding/novaryx_app_icon.svg -o assets/branding/novaryx_app_icon.png
+          file assets/branding/novaryx_app_icon.png
+
       - name: Install dependencies
         run: flutter pub get
 
