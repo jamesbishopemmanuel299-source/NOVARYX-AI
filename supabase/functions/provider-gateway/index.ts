@@ -74,7 +74,7 @@ serve(async (req) => {
       const upstream = await fetch("https://api.kie.ai/api/v1/jobs/createTask", {
         method: "POST",
         headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json" },
-        body: JSON.stringify({ model, input: { prompt, ...(generationKind !== "music" && typeof input.aspectRatio === "string" ? { aspect_ratio: input.aspectRatio } : {}) } }),
+        body: JSON.stringify({ model, input: { prompt, ...(generationKind !== "music" && typeof input.aspectRatio === "string" ? { aspect_ratio: input.aspectRatio } : {}), ...(generationKind !== "music" && typeof input.imageUrl === "string" && input.imageUrl.trim() ? { image_url: input.imageUrl.trim() } : {}) } }),
       });
       return reply(await upstream.json(), upstream.status);
     }
