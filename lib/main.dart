@@ -13,12 +13,33 @@ import 'package:url_launcher/url_launcher.dart';
 
 const String _supabaseUrlFromBuild = String.fromEnvironment('SUPABASE_URL');
 const String _supabaseKeyFromBuild = String.fromEnvironment('SUPABASE_PUBLISHABLE_KEY');
-final String defaultSupabaseUrl = _supabaseUrlFromBuild.isEmpty
-    ? 'https://vihbsfrwnslnmheowkhy.supabase.co'
-    : _supabaseUrlFromBuild;
-final String defaultSupabasePublishableKey = _supabaseKeyFromBuild.isEmpty
-    ? 'sb_publishable_HIMGxb-O6fj9O7OzT4ukuQ_jm5W8mWz'
-    : _supabaseKeyFromBuild;
+
+// Keep the project URL configurable at build time. Trim accidental whitespace
+// from GitHub Actions secrets and reject malformed URLs before auth requests.
+String get defaultSupabaseUrl {
+  final configured = _supabaseUrlFromBuild.trim();
+  final url = configured.isEmpty
+      ? 'https://vihbsfrwnslnmheowkhy.supabase.co'
+      : configured;
+  final parsed = Uri.tryParse(url);
+  if (parsed == null ||
+      parsed.scheme != 'https' ||
+      parsed.host.isEmpty ||
+      !parsed.host.endsWith('.supabase.co')) {
+    throw StateError(
+      'Invalid Supabase URL. Set SUPABASE_URL to the HTTPS Project URL '
+      'copied from Supabase Dashboard → Project Settings → API.',
+    );
+  }
+  return url;
+}
+
+String get defaultSupabasePublishableKey {
+  final configured = _supabaseKeyFromBuild.trim();
+  return configured.isEmpty
+      ? 'sb_publishable_HIMGxb-O6fj9O7OzT4ukuQ_jm5W8mWz'
+      : configured;
+}
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
