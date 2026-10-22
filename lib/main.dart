@@ -235,6 +235,7 @@ class _HomeScreenState extends State<HomeScreen> {
       const GenerationScreen(kind: GenerationKind.music),
       const GenerationScreen(kind: GenerationKind.video),
       const GenerationHistoryScreen(),
+      const TemplatesScreen(),
     ];
     return Scaffold(
       appBar: AppBar(
@@ -464,8 +465,11 @@ List<String> _stylesFor(GenerationKind kind) => switch (kind) {
 };
 
 class GenerationScreen extends StatefulWidget {
-  const GenerationScreen({super.key, required this.kind});
+  const GenerationScreen({super.key, required this.kind, this.initialPrompt = '', this.initialStyle, this.initialMode});
   final GenerationKind kind;
+  final String initialPrompt;
+  final String? initialStyle;
+  final String? initialMode;
 
   @override
   State<GenerationScreen> createState() => _GenerationScreenState();
@@ -483,11 +487,69 @@ class _GenerationScreenState extends State<GenerationScreen> {
   String? _resultUrl;
 
   @override
+  void initState() {
+    super.initState();
+    _promptController.text = widget.initialPrompt;
+    if (widget.initialStyle != null && _stylesFor(widget.kind).contains(widget.initialStyle)) _selectedStyle = widget.initialStyle!;
+    if (widget.initialMode != null) _generationMode = widget.initialMode!;
+  }
+
+  @override
   void dispose() {
     _promptController.dispose();
     _referenceImageController.dispose();
     _referenceVideoController.dispose();
     super.dispose();
+  }
+
+  Future<void> _publishTemplate() async {
+    final client = Supabase.instance.client;
+    final user = client.auth.currentUser;
+    if (user == null) {
+      setState(() => _status = 'Sign in before posting a template.');
+      return;
+    }
+    final titleController = TextEditingController(text: _promptController.text.trim().split('\n').first);
+    final descriptionController = TextEditingController();
+    final approved = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Post to Templates'),
+        content: Column(mainAxisSize: MainAxisSize.min, children: [
+          TextField(controller: titleController, decoration: const InputDecoration(labelText: 'Template title')),
+          const SizedBox(height: 10),
+          TextField(controller: descriptionController, decoration: const InputDecoration(labelText: 'Description (optional)')),
+        ]),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Cancel')),
+          FilledButton(onPressed: () => Navigator.pop(context, true), child: const Text('Post template')),
+        ],
+      ),
+    );
+    if (approved != true || titleController.text.trim().isEmpty || !mounted) {
+      titleController.dispose();
+      descriptionController.dispose();
+      return;
+    }
+    try {
+      await client.from('community_templates').insert({
+        'user_id': user.id,
+        'title': titleController.text.trim(),
+        'description': descriptionController.text.trim(),
+        'kind': widget.kind.name,
+        'prompt': _promptController.text.trim(),
+        'style': _selectedStyle,
+        'generation_mode': _generationMode,
+        'aspect_ratio': _selectedRatio,
+        'result_url': _resultUrl,
+      });
+      if (mounted) setState(() => _status = 'Template posted. Other users can find it in Templates and use or edit it.');
+    } catch (e) {
+      if (mounted) setState(() => _status = 'Could not post template: ${_cleanError(e)}. Apply the community_templates migration in Supabase first.');
+    } finally {
+      titleController.dispose();
+      descriptionController.dispose();
+    }
   }
 
   Future<void> _generate() async {
@@ -709,6 +771,12 @@ class _GenerationScreenState extends State<GenerationScreen> {
             icon: const Icon(Icons.link),
             label: const Text('View or copy result link'),
           ),
+          const SizedBox(height: 8),
+          OutlinedButton.icon(
+            onPressed: _working ? null : _publishTemplate,
+            icon: const Icon(Icons.publish_outlined),
+            label: const Text('Post as template'),
+          ),
         ],
         const SizedBox(height: 18),
         const Text(
@@ -718,6 +786,98 @@ class _GenerationScreenState extends State<GenerationScreen> {
       ],
     );
   }
+}
+
+
+
+class TemplatesScreen extends StatefulWidget {
+  const TemplatesScreen({super.key});
+  @override
+  State<TemplatesScreen> createState() => _TemplatesScreenState();
+}
+
+class _TemplatesScreenState extends State<TemplatesScreen> {
+  late Future<List<Map<String, dynamic>>> _templates;
+
+  @override
+  void initState() {
+    super.initState();
+    _templates = _loadTemplates();
+  }
+
+  Future<List<Map<String, dynamic>>> _loadTemplates() async {
+    final rows = await Supabase.instance.client.from('community_templates')
+        .select('id,title,description,kind,prompt,style,generation_mode,aspect_ratio,result_url,created_at')
+        .order('created_at', ascending: false).limit(100);
+    return (rows as List).map((row) => Map<String, dynamic>.from(row as Map)).toList();
+  }
+
+  Future<void> _useTemplate(Map<String, dynamic> item) async {
+    final kindName = item['kind']?.toString() ?? 'image';
+    final kind = GenerationKind.values.firstWhere((k) => k.name == kindName, orElse: () => GenerationKind.image);
+    await Navigator.of(context).push(MaterialPageRoute(builder: (_) => GenerationScreen(
+      kind: kind,
+      initialPrompt: item['prompt']?.toString() ?? '',
+      initialStyle: item['style']?.toString(),
+      initialMode: item['generation_mode']?.toString(),
+    )));
+  }
+
+  @override
+  Widget build(BuildContext context) => RefreshIndicator(
+    onRefresh: () async => setState(() => _templates = _loadTemplates()),
+    child: FutureBuilder<List<Map<String, dynamic>>>(
+      future: _templates,
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) return const Center(child: CircularProgressIndicator());
+        if (snapshot.hasError) return ListView(padding: const EdgeInsets.all(20), children: [
+          const Text('Community templates are not available yet. Apply the Supabase migration community_templates.sql, then refresh.'),
+          const SizedBox(height: 12),
+          OutlinedButton.icon(onPressed: () => setState(() => _templates = _loadTemplates()), icon: const Icon(Icons.refresh), label: const Text('Retry')),
+        ]);
+        final items = snapshot.data ?? [];
+        if (items.isEmpty) return ListView(padding: const EdgeInsets.all(24), children: const [
+          Icon(Icons.dashboard_customize_outlined, size: 52, color: Color(0xFF00EFFF)),
+          SizedBox(height: 14),
+          Text('No templates yet', style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold)),
+          SizedBox(height: 8),
+          Text('Generate an image, video, or music track, then tap “Post as template” so others can reuse and edit your prompt.'),
+        ]);
+        return ListView(padding: const EdgeInsets.all(16), children: [
+          const Text('Community Templates', style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold)),
+          const SizedBox(height: 6),
+          const Text('Use a template as-is or edit its prompt before generating.'),
+          const SizedBox(height: 12),
+          for (final item in items) Card(
+            margin: const EdgeInsets.only(bottom: 12),
+            child: Padding(padding: const EdgeInsets.all(16), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Row(children: [
+                Icon(switch (item['kind']) { 'video' => Icons.movie_outlined, 'music' => Icons.music_note_outlined, _ => Icons.image_outlined }, color: const Color(0xFF00EFFF)),
+                const SizedBox(width: 8),
+                Expanded(child: Text(item['title']?.toString() ?? 'Untitled template', style: const TextStyle(fontSize: 17, fontWeight: FontWeight.bold))),
+                Text((item['kind']?.toString() ?? 'image').toUpperCase(), style: const TextStyle(fontSize: 10, color: Colors.white60)),
+              ]),
+              if ((item['description']?.toString() ?? '').isNotEmpty) Padding(padding: const EdgeInsets.only(top: 8), child: Text(item['description'].toString())),
+              const SizedBox(height: 8),
+              Text(item['prompt']?.toString() ?? '', maxLines: 3, overflow: TextOverflow.ellipsis, style: const TextStyle(color: Colors.white70)),
+              const SizedBox(height: 8),
+              Text('Style: ${item['style'] ?? 'Cinematic'}  •  Mode: ${item['generation_mode'] ?? 'default'}', style: const TextStyle(fontSize: 12, color: Colors.white54)),
+              const SizedBox(height: 12),
+              Row(children: [
+                Expanded(child: FilledButton.icon(onPressed: () => _useTemplate(item), icon: const Icon(Icons.copy_all), label: const Text('Use template'))),
+                if ((item['result_url']?.toString() ?? '').startsWith('http')) ...[
+                  const SizedBox(width: 8),
+                  IconButton(tooltip: 'Copy media URL', onPressed: () {
+                    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Open the template to reuse its prompt; media URL is available in the original post.')));
+                  }, icon: const Icon(Icons.link)),
+                ],
+              ]),
+            ])),
+          ),
+        ]);
+      },
+    ),
+  );
 }
 
 
