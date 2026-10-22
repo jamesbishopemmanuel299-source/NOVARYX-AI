@@ -51,12 +51,13 @@ serve(async (req) => {
       const packages: Record<number, number> = { 100: 1332, 250: 3330, 500: 6659, 1000: 13318, 2500: 33295, 5000: 66590, 10000: 133180 };
       const amount = packages[credits];
       if (!email || !amount) return reply({ error: "Choose a valid credit package." }, 400);
+      if (!Deno.env.get("FLUTTERWAVE_REDIRECT_URL")) return reply({ error: "Set FLUTTERWAVE_REDIRECT_URL to your valid HTTPS payment return page in Supabase Edge Function secrets." }, 500);
       const txRef = `NOVARYX-${userData.user.id}-${crypto.randomUUID()}`;
       const { error: insertError } = await admin.from("credit_purchases").insert({ tx_ref: txRef, user_id: userData.user.id, credits, amount_ngn: amount, status: "pending" });
       if (insertError) return reply({ error: "Could not create purchase record: " + insertError.message }, 500);
       const key = Deno.env.get("FLUTTERWAVE_SECRET_KEY");
       if (!key) return reply({ error: "FLUTTERWAVE_SECRET_KEY is not configured in Supabase Edge Function secrets." }, 500);
-      const redirectUrl = String(input.redirect_url ?? "");
+      const redirectUrl = Deno.env.get("FLUTTERWAVE_REDIRECT_URL") ?? "";
       const upstream = await fetch("https://api.flutterwave.com/v3/payments", {
         method: "POST", headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json" },
         body: JSON.stringify({ tx_ref: txRef, amount, currency: "NGN", redirect_url: redirectUrl, customer: { email, name: String(input.name ?? "") }, customizations: { title: "NOVARYX-AI", description: `${credits} generation credits` } })
