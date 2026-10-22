@@ -22,10 +22,20 @@ final String defaultSupabasePublishableKey = _supabaseKeyFromBuild.isEmpty
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  await Supabase.initialize(
-    url: defaultSupabaseUrl,
-    anonKey: defaultSupabasePublishableKey,
-  );
+
+  // Do not let a slow or temporarily unavailable backend keep Android on
+  // the launch screen indefinitely. The app can open and show its UI while
+  // backend initialization is attempted.
+  try {
+    await Supabase.initialize(
+      url: defaultSupabaseUrl,
+      anonKey: defaultSupabasePublishableKey,
+    ).timeout(const Duration(seconds: 12));
+  } catch (error, stackTrace) {
+    debugPrint('NOVARYX-AI Supabase startup initialization failed: $error');
+    debugPrintStack(stackTrace: stackTrace);
+  }
+
   runApp(const NovaryxApp());
 }
 
