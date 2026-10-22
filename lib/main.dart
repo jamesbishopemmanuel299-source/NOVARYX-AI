@@ -574,7 +574,23 @@ class _GenerationScreenState extends State<GenerationScreen> {
             Text(kind.description, style: const TextStyle(color: Colors.white70)),
           ]),
         ),
-        const SizedBox(height: 24),
+        if (kind != GenerationKind.music) ...[
+          Text('Aspect ratio', style: Theme.of(context).textTheme.titleMedium),
+          const SizedBox(height: 10),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: ['1:1', '16:9', '9:16', '4:3', '3:4', '3:2', '2:3', '21:9', '5:4'].map((ratio) => ChoiceChip(
+              label: Text(ratio),
+              selected: _selectedRatio == ratio,
+              onSelected: _working ? null : (_) => setState(() => _selectedRatio = ratio),
+              selectedColor: const Color(0xFF123D72),
+              side: BorderSide(color: _selectedRatio == ratio ? const Color(0xFF00EFFF) : const Color(0xFF244A82)),
+              labelStyle: TextStyle(color: _selectedRatio == ratio ? const Color(0xFF00EFFF) : Colors.white70),
+            )).toList(),
+          ),
+          const SizedBox(height: 22),
+        ],
         Text('Choose a style', style: Theme.of(context).textTheme.titleMedium),
         const SizedBox(height: 10),
         Wrap(spacing: 8, runSpacing: 8, children: _stylesFor(kind).map((style) => ChoiceChip(
