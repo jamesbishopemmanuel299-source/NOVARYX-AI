@@ -112,14 +112,10 @@ class _HomeScreenState extends State<HomeScreen> {
     });
     _chatController.clear();
     try {
-      final key = await ProviderSettings.read(ProviderSettings.groqKey);
       final model = await ProviderSettings.read(
         ProviderSettings.groqModel,
         fallback: 'llama-3.3-70b-versatile',
       );
-      if (key.isEmpty) {
-        throw Exception('Add your Groq API key in Settings first.');
-      }
       final history = _messages
           .map((m) => <String, dynamic>{'role': m.role, 'content': m.text})
           .toList();
@@ -344,9 +340,7 @@ class _GenerationScreenState extends State<GenerationScreen> {
       _resultUrl = null;
     });
     try {
-      final key = await ProviderSettings.read(ProviderSettings.kieKey);
       final model = await ProviderSettings.read(widget.kind.modelKey);
-      if (key.isEmpty) throw Exception('Add your Kie.ai API key in Settings first.');
       if (model.isEmpty) throw Exception('Add a supported Kie.ai ${widget.kind.label.toLowerCase()} model ID in Settings.');
       if (Supabase.instance.client.auth.currentSession == null) {
         throw Exception('Sign in to your Supabase account in Settings before using AI services.');
@@ -493,9 +487,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
   bool _authWorking = false;
 
   static const _fields = <(String, String, bool, String)>[
-    (ProviderSettings.groqKey, 'Groq API key', true, ''),
     (ProviderSettings.groqModel, 'Groq chat model', false, 'llama-3.3-70b-versatile'),
-    (ProviderSettings.kieKey, 'Kie.ai API key', true, ''),
     (ProviderSettings.imageModel, 'Kie.ai image model ID', false, ''),
     (ProviderSettings.musicModel, 'Kie.ai music model ID', false, ''),
     (ProviderSettings.videoModel, 'Kie.ai video model ID', false, ''),
