@@ -41,22 +41,50 @@ String get defaultSupabasePublishableKey {
       : configured;
 }
 
+const String _renderConfigUrl = 'https://novaryx-ai.onrender.com/api/config';
+String? _supabaseStartupError;
+Future<void>? _supabaseInitialization;
+
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
-
-  // Show Flutter's first frame immediately instead of waiting for backend
-  // initialization. A slow backend should not hold the Android launch screen.
+  // Start immediately so the login page can render while Render wakes up.
   runApp(const NovaryxApp());
+  _supabaseInitialization = _initializeSupabaseFromRender();
+}
 
-  // Initialize Supabase in the background and bound the wait time.
+Future<void> _initializeSupabaseFromRender() async {
   try {
-    await Supabase.initialize(
-      url: defaultSupabaseUrl,
-      anonKey: defaultSupabasePublishableKey,
-    ).timeout(const Duration(seconds: 10));
-    debugPrint('NOVARYX-AI Supabase initialization completed.');
+    final response = await http.get(Uri.parse(_renderConfigUrl))
+        .timeout(const Duration(seconds: 25));
+    final decoded = jsonDecode(response.body);
+    if (response.statusCode < 200 || response.statusCode >= 300) {
+      final message = decoded is Map
+          ? decoded['message']?.toString() ?? decoded['error']?.toString()
+          : null;
+      throw StateError(
+        'Render config request failed (HTTP ${response.statusCode})'
+        '${message == null ? '' : ': $message'}',
+      );
+    }
+    if (decoded is! Map) {
+      throw const FormatException('Render /api/config did not return a JSON object.');
+    }
+    final url = decoded['supabaseUrl']?.toString().trim() ?? '';
+    final key = decoded['supabasePublishableKey']?.toString().trim() ?? '';
+    final parsed = Uri.tryParse(url);
+    if (parsed == null || parsed.scheme != 'https' ||
+        !parsed.host.endsWith('.supabase.co') || key.isEmpty) {
+      throw const FormatException(
+        'Render /api/config must return a valid supabaseUrl and supabasePublishableKey. '
+        'Check the Render environment variables SUPABASE_URL and SUPABASE_PUBLISHABLE_KEY.',
+      );
+    }
+    await Supabase.initialize(url: url, anonKey: key);
+    _supabaseStartupError = null;
+    debugPrint('NOVARYX-AI Supabase initialized using Render configuration.');
   } catch (error, stackTrace) {
-    debugPrint('NOVARYX-AI Supabase startup initialization failed: $error');
+    _supabaseStartupError = error.toString();
+    debugPrint('NOVARYX-AI Render/Supabase startup error: $error');
     debugPrintStack(stackTrace: stackTrace);
   }
 }
@@ -350,15 +378,15 @@ class _LoginScreenState extends State<LoginScreen> {
       });
       return;
     }
-    if (!Supabase.instance.isInitialized) {
-      setState(() {
-        _errorType = 'SupabaseInitialization';
-        _exactError = 'Supabase is not initialized. Check SUPABASE_URL and SUPABASE_PUBLISHABLE_KEY in the APK build configuration, then rebuild.';
-      });
-      return;
-    }
     setState(() { _busy = true; _exactError = null; _errorType = null; });
     try {
+      // Wait for the Render config endpoint and Supabase initialization before
+      // attempting authentication, so a cold start cannot cause a false error.
+      await _supabaseInitialization?.timeout(const Duration(seconds: 30));
+      if (!Supabase.instance.isInitialized) {
+        throw StateError(_supabaseStartupError ??
+            'Supabase initialization has not completed. Check the Render service and /api/config endpoint.');
+      }
       if (_creatingAccount) {
         await Supabase.instance.client.auth.signUp(email: email, password: password)
             .timeout(const Duration(seconds: 30));
