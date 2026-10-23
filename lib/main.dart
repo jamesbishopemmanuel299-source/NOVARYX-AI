@@ -47,44 +47,26 @@ Future<void>? _supabaseInitialization;
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  // Start immediately so the login page can render while Render wakes up.
   runApp(const NovaryxApp());
-  _supabaseInitialization = _initializeSupabaseFromRender();
+  _supabaseInitialization = _initializeSupabaseDirectly();
 }
 
-Future<void> _initializeSupabaseFromRender() async {
+Future<void> _initializeSupabaseDirectly() async {
   try {
-    final response = await http.get(Uri.parse(_renderConfigUrl))
-        .timeout(const Duration(seconds: 25));
-    final decoded = jsonDecode(response.body);
-    if (response.statusCode < 200 || response.statusCode >= 300) {
-      final message = decoded is Map
-          ? decoded['message']?.toString() ?? decoded['error']?.toString()
-          : null;
+    final url = defaultSupabaseUrl;
+    final key = defaultSupabasePublishableKey.trim();
+    if (key.isEmpty) {
       throw StateError(
-        'Render config request failed (HTTP ${response.statusCode})'
-        '${message == null ? '' : ': $message'}',
-      );
-    }
-    if (decoded is! Map) {
-      throw const FormatException('Render /api/config did not return a JSON object.');
-    }
-    final url = decoded['supabaseUrl']?.toString().trim() ?? '';
-    final key = decoded['supabasePublishableKey']?.toString().trim() ?? '';
-    final parsed = Uri.tryParse(url);
-    if (parsed == null || parsed.scheme != 'https' ||
-        !parsed.host.endsWith('.supabase.co') || key.isEmpty) {
-      throw const FormatException(
-        'Render /api/config must return a valid supabaseUrl and supabasePublishableKey. '
-        'Check the Render environment variables SUPABASE_URL and SUPABASE_PUBLISHABLE_KEY.',
+        'Supabase publishable key is missing. Set SUPABASE_PUBLISHABLE_KEY '
+        'in the Flutter build environment.',
       );
     }
     await Supabase.initialize(url: url, anonKey: key);
     _supabaseStartupError = null;
-    debugPrint('NOVARYX-AI Supabase initialized using Render configuration.');
+    debugPrint('NOVARYX-AI Supabase initialized from Flutter build configuration.');
   } catch (error, stackTrace) {
     _supabaseStartupError = error.toString();
-    debugPrint('NOVARYX-AI Render/Supabase startup error: $error');
+    debugPrint('NOVARYX-AI Supabase startup error: $error');
     debugPrintStack(stackTrace: stackTrace);
   }
 }
