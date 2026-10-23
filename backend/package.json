@@ -1,0 +1,12 @@
+{
+  "name": "novaryx-ai-config-api",
+  "version": "1.0.0",
+  "private": true,
+  "description": "NOVARYX-AI public client configuration API for Render",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}
