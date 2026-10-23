@@ -41,7 +41,6 @@ String get defaultSupabasePublishableKey {
       : configured;
 }
 
-const String _renderConfigUrl = 'https://novaryx-ai.onrender.com/api/config';
 String? _supabaseStartupError;
 Future<void>? _supabaseInitialization;
 
