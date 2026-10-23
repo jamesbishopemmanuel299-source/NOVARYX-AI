@@ -52,17 +52,49 @@ Future<void> main() async {
 
 Future<void> _initializeSupabaseDirectly() async {
   try {
-    final url = defaultSupabaseUrl;
-    final key = defaultSupabasePublishableKey.trim();
-    if (key.isEmpty) {
+    // Fetch the active Supabase project configuration from the Render config
+    // endpoint instead of baking a possibly stale project hostname into the APK.
+    // Keep the endpoint internal to the app; never render it in the UI.
+    final response = await http
+        .get(Uri.parse('https://novaryx-ai.onrender.com/api/config'))
+        .timeout(const Duration(seconds: 25));
+
+    if (response.statusCode != 200) {
       throw StateError(
-        'Supabase publishable key is missing. Set SUPABASE_PUBLISHABLE_KEY '
-        'in the Flutter build environment.',
+        'Could not load sign-in configuration from the app server '
+        '(HTTP ${response.statusCode}). Check Render /api/config and set '
+        'SUPABASE_URL plus SUPABASE_PUBLISHABLE_KEY in the Render environment.',
       );
     }
+
+    final decoded = jsonDecode(response.body);
+    if (decoded is! Map<String, dynamic>) {
+      throw StateError('The app server returned invalid sign-in configuration.');
+    }
+
+    final url = (decoded['supabaseUrl'] ?? '').toString().trim();
+    final key = (decoded['supabasePublishableKey'] ?? '').toString().trim();
+    final parsedUrl = Uri.tryParse(url);
+    if (parsedUrl == null ||
+        parsedUrl.scheme != 'https' ||
+        parsedUrl.host.isEmpty ||
+        !parsedUrl.host.endsWith('.supabase.co')) {
+      throw StateError(
+        'The app server returned an invalid Supabase Project URL. '
+        'Correct SUPABASE_URL in the Render environment using the exact URL '
+        'from Supabase Dashboard → Project Settings → API.',
+      );
+    }
+    if (key.isEmpty) {
+      throw StateError(
+        'The app server did not return a Supabase publishable key. '
+        'Set SUPABASE_PUBLISHABLE_KEY in the Render environment.',
+      );
+    }
+
     await Supabase.initialize(url: url, anonKey: key);
     _supabaseStartupError = null;
-    debugPrint('NOVARYX-AI Supabase initialized from Flutter build configuration.');
+    debugPrint('NOVARYX-AI Supabase initialized using server-provided configuration.');
   } catch (error, stackTrace) {
     _supabaseStartupError = error.toString();
     debugPrint('NOVARYX-AI Supabase startup error: $error');
@@ -407,7 +439,7 @@ class _LoginScreenState extends State<LoginScreen> {
       setState(() {
         _errorType = error.runtimeType.toString();
         _exactError = isHostLookupFailure
-            ? '$rawError\n\nConnection diagnosis: the device could not resolve the configured Supabase hostname. Verify the Project URL in Supabase Dashboard → Project Settings → API, confirm the project is active (not paused or deleted), and ensure the URL matches exactly. The app is using: ${defaultSupabaseUrl}. This is a server/DNS connection error, not an email or password error.'
+            ? '$rawError\n\nConnection diagnosis: the device could not resolve the configured hostname. Check the Render config endpoint and verify that its SUPABASE_URL is the exact active Project URL from Supabase Dashboard → Project Settings → API. This is a server/DNS connection error, not an email or password error.'
             : rawError;
       });
     } finally {
