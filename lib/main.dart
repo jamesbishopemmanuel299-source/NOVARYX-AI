@@ -37,7 +37,7 @@ String get defaultSupabaseUrl {
 String get defaultSupabasePublishableKey {
   final configured = _supabaseKeyFromBuild.trim();
   return configured.isEmpty
-      ? 'sb_publishable_HIMGxb-O6fj9O7OzT4ukuQ_jm5W8mWz'
+      ? 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZpaGJzZnJ3bnNsbm1oZW93a3kiLCJyb2xlIjoiYW5vbiIsImlhdCI6MTc4ODAwMzIzOSwiZXhwIjoyMTAzNTc5MjM5fQ.eHAaAj7d7bhpFuBFinwxa80fW-QrjOpNwShSzSadhdA'
       : configured;
 }
 
