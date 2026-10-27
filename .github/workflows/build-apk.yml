@@ -85,19 +85,63 @@ jobs:
       - name: Enable Android code and resource shrinking
         shell: bash
         run: |
-          GRADLE_FILE="android/app/build.gradle.kts"
-          if [ -f "$GRADLE_FILE" ]; then
-            sed -i 's/isMinifyEnabled = false/isMinifyEnabled = true/' "$GRADLE_FILE"
-            sed -i 's/isShrinkResources = false/isShrinkResources = true/' "$GRADLE_FILE"
-          else
-            GRADLE_FILE="android/app/build.gradle"
-            if [ -f "$GRADLE_FILE" ]; then
-              sed -i 's/minifyEnabled false/minifyEnabled true/' "$GRADLE_FILE"
-              sed -i 's/shrinkResources false/shrinkResources true/' "$GRADLE_FILE"
-            fi
-          fi
-          echo "Using release config in $GRADLE_FILE"
-          grep -nE 'isMinifyEnabled|isShrinkResources|minifyEnabled|shrinkResources' "$GRADLE_FILE" || true
+          python3 - <<'PY'
+          from pathlib import Path
+          import re
+          candidates = [Path("android/app/build.gradle.kts"), Path("android/app/build.gradle")]
+          gradle = next((p for p in candidates if p.exists()), None)
+          if gradle is None:
+              raise SystemExit("Android app Gradle file not found")
+          text = gradle.read_text()
+          match = re.search(r'\\brelease\\s*\\{', text)
+          if not match:
+              raise SystemExit(f"Could not locate release build type in {gradle}")
+          start = match.end()
+          depth = 1
+          i = start
+          while i < len(text) and depth:
+              if text[i] == "{":
+                  depth += 1
+              elif text[i] == "}":
+                  depth -= 1
+              i += 1
+          if depth:
+              raise SystemExit(f"Unbalanced release block in {gradle}")
+          block = text[match.start():i]
+          kotlin = gradle.suffix == ".kts"
+          settings = [
+              (r'(?m)^([ \\t]*)isMinifyEnabled\\s*=\\s*(?:true|false)', r'\\1isMinifyEnabled = true',
+               '            isMinifyEnabled = true'),
+              (r'(?m)^([ \\t]*)isShrinkResources\\s*=\\s*(?:true|false)', r'\\1isShrinkResources = true',
+               '            isShrinkResources = true'),
+          ] if kotlin else [
+              (r'(?m)^([ \\t]*)minifyEnabled\\s+(?:true|false)', r'\\1minifyEnabled true',
+               '            minifyEnabled true'),
+              (r'(?m)^([ \\t]*)shrinkResources\\s+(?:true|false)', r'\\1shrinkResources true',
+               '            shrinkResources true'),
+          ]
+          additions = []
+          for pattern, replacement, line in settings:
+              if re.search(pattern, block):
+                  block = re.sub(pattern, replacement, block, count=1)
+              else:
+                  additions.append(line)
+          if not re.search(r'(?m)^\\s*proguardFiles\\b', block):
+              additions.append(
+                  '            proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"))'
+                  if kotlin else
+                  '            proguardFiles getDefaultProguardFile("proguard-android-optimize.txt")'
+              )
+          if additions:
+              opening = re.search(r'\\brelease\\s*\\{', block)
+              block = block[:opening.end()] + "\\n" + "\\n".join(additions) + block[opening.end():]
+          text = text[:match.start()] + block + text[i:]
+          gradle.write_text(text)
+          print(f"Enabled R8 and resource shrinking in {gradle}")
+          for line_no, line in enumerate(text.splitlines(), 1):
+              if any(token in line for token in ("isMinifyEnabled", "isShrinkResources", "minifyEnabled", "shrinkResources", "proguardFiles")):
+                  print(f"{line_no}: {line.strip()}")
+          PY
 
       - name: Analyze
         run: flutter analyze
