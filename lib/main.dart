@@ -52,49 +52,20 @@ Future<void> main() async {
 
 Future<void> _initializeSupabaseDirectly() async {
   try {
-    // Fetch the active Supabase project configuration from the Render config
-    // endpoint instead of baking a possibly stale project hostname into the APK.
-    // Keep the endpoint internal to the app; never render it in the UI.
-    final response = await http
-        .get(Uri.parse('https://novaryx-ai.onrender.com/api/config'))
-        .timeout(const Duration(seconds: 25));
-
-    if (response.statusCode != 200) {
-      throw StateError(
-        'Could not load sign-in configuration from the app server '
-        '(HTTP ${response.statusCode}). Check Render /api/config and set '
-        'SUPABASE_URL plus SUPABASE_PUBLISHABLE_KEY in the Render environment.',
-      );
-    }
-
-    final decoded = jsonDecode(response.body);
-    if (decoded is! Map<String, dynamic>) {
-      throw StateError('The app server returned invalid sign-in configuration.');
-    }
-
-    final url = (decoded['supabaseUrl'] ?? '').toString().trim();
-    final key = (decoded['supabasePublishableKey'] ?? '').toString().trim();
-    final parsedUrl = Uri.tryParse(url);
-    if (parsedUrl == null ||
-        parsedUrl.scheme != 'https' ||
-        parsedUrl.host.isEmpty ||
-        !parsedUrl.host.endsWith('.supabase.co')) {
-      throw StateError(
-        'The app server returned an invalid Supabase Project URL. '
-        'Correct SUPABASE_URL in the Render environment using the exact URL '
-        'from Supabase Dashboard → Project Settings → API.',
-      );
-    }
+    // Initialize Supabase directly from the public project URL and
+    // anon/publishable key. No Render config endpoint is required.
+    final url = defaultSupabaseUrl;
+    final key = defaultSupabasePublishableKey.trim();
     if (key.isEmpty) {
       throw StateError(
-        'The app server did not return a Supabase publishable key. '
-        'Set SUPABASE_PUBLISHABLE_KEY in the Render environment.',
+        'Missing Supabase public anon/publishable key. Set '
+        'SUPABASE_PUBLISHABLE_KEY in your GitHub Actions build secrets '
+        'or configure the public key in defaultSupabasePublishableKey.',
       );
     }
-
     await Supabase.initialize(url: url, anonKey: key);
     _supabaseStartupError = null;
-    debugPrint('NOVARYX-AI Supabase initialized using server-provided configuration.');
+    debugPrint('NOVARYX-AI Supabase initialized directly.');
   } catch (error, stackTrace) {
     _supabaseStartupError = error.toString();
     debugPrint('NOVARYX-AI Supabase startup error: $error');
@@ -393,12 +364,11 @@ class _LoginScreenState extends State<LoginScreen> {
     }
     setState(() { _busy = true; _exactError = null; _errorType = null; });
     try {
-      // Wait for the Render config endpoint and Supabase initialization before
-      // attempting authentication, so a cold start cannot cause a false error.
+      // Wait for direct Supabase initialization before attempting authentication.
       await _supabaseInitialization?.timeout(const Duration(seconds: 30));
       if (!Supabase.instance.isInitialized) {
         throw StateError(_supabaseStartupError ??
-            'Supabase initialization has not completed. Check the Render service and /api/config endpoint.');
+            'Supabase initialization has not completed. Verify the Supabase Project URL and public anon/publishable key.');
       }
       if (_creatingAccount) {
         await Supabase.instance.client.auth.signUp(email: email, password: password)
