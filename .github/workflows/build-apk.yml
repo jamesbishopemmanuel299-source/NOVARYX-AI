@@ -93,7 +93,7 @@ jobs:
           if gradle is None:
               raise SystemExit("Android app Gradle file not found")
           text = gradle.read_text()
-          match = re.search(r'\\brelease\\s*\\{', text)
+          match = re.search(r'\brelease\s*\{', text)
           if not match:
               raise SystemExit(f"Could not locate release build type in {gradle}")
           start = match.end()
@@ -110,14 +110,14 @@ jobs:
           block = text[match.start():i]
           kotlin = gradle.suffix == ".kts"
           settings = [
-              (r'(?m)^([ \\t]*)isMinifyEnabled\\s*=\\s*(?:true|false)', r'\\1isMinifyEnabled = true',
+              (r'(?m)^([ \t]*)isMinifyEnabled\s*=\s*(?:true|false)', r'\1isMinifyEnabled = true',
                '            isMinifyEnabled = true'),
-              (r'(?m)^([ \\t]*)isShrinkResources\\s*=\\s*(?:true|false)', r'\\1isShrinkResources = true',
+              (r'(?m)^([ \t]*)isShrinkResources\s*=\s*(?:true|false)', r'\1isShrinkResources = true',
                '            isShrinkResources = true'),
           ] if kotlin else [
-              (r'(?m)^([ \\t]*)minifyEnabled\\s+(?:true|false)', r'\\1minifyEnabled true',
+              (r'(?m)^([ \t]*)minifyEnabled\s+(?:true|false)', r'\1minifyEnabled true',
                '            minifyEnabled true'),
-              (r'(?m)^([ \\t]*)shrinkResources\\s+(?:true|false)', r'\\1shrinkResources true',
+              (r'(?m)^([ \t]*)shrinkResources\s+(?:true|false)', r'\1shrinkResources true',
                '            shrinkResources true'),
           ]
           additions = []
@@ -126,15 +126,15 @@ jobs:
                   block = re.sub(pattern, replacement, block, count=1)
               else:
                   additions.append(line)
-          if not re.search(r'(?m)^\\s*proguardFiles\\b', block):
+          if not re.search(r'(?m)^\s*proguardFiles\b', block):
               additions.append(
                   '            proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"))'
                   if kotlin else
                   '            proguardFiles getDefaultProguardFile("proguard-android-optimize.txt")'
               )
           if additions:
-              opening = re.search(r'\\brelease\\s*\\{', block)
-              block = block[:opening.end()] + "\\n" + "\\n".join(additions) + block[opening.end():]
+              opening = re.search(r'\brelease\s*\{', block)
+              block = block[:opening.end()] + "\n" + "\n".join(additions) + block[opening.end():]
           text = text[:match.start()] + block + text[i:]
           gradle.write_text(text)
           print(f"Enabled R8 and resource shrinking in {gradle}")
