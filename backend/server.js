@@ -99,7 +99,8 @@ body.chat-layout #page-chat{display:flex!important;flex-direction:column;min-hei
 <script id="novaryx-chat-default">
 (function(){var originalShowApp=window.showApp;if(typeof originalShowApp==="function"){window.showApp=function(){originalShowApp();document.body.classList.add("chat-layout");if(typeof window.goPage==="function")window.goPage("chat");};}document.addEventListener("DOMContentLoaded",function(){var input=document.getElementById("chatInput");if(input){input.placeholder="Message NOVARYX-AI";input.addEventListener("keydown",function(e){if(e.key==="Enter"&&!e.shiftKey){e.preventDefault();var form=document.getElementById("chatForm");if(form)form.requestSubmit();}});}});})();
 </script>\`;
-    const enhancedHtml = html.replace("</head>", chatUi + "</head>");
+    const scriptStart = chatUi.indexOf('<script id="novaryx-chat-default">');
+    const enhancedHtml = html.replace("</head>", chatUi.slice(0, scriptStart) + "</head>").replace("</body>", chatUi.slice(scriptStart) + "</body>");
     res.writeHead(200, {
       "content-type": "text/html; charset=utf-8",
       "cache-control": "no-cache",
