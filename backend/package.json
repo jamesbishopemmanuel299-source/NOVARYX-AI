@@ -1,0 +1,13 @@
+{
+  "name": "novaryx-ai-render-api",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Render API gateway for NOVARYX-AI",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "engines": {
+    "node": ">=22"
+  }
+}
