@@ -46,8 +46,13 @@ Future<void>? _supabaseInitialization;
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  runApp(const NovaryxApp());
+
+  // Initialize authentication before the first frame so the app always opens
+  // on the login screen with Supabase ready (or a visible startup error).
   _supabaseInitialization = _initializeSupabaseDirectly();
+  await _supabaseInitialization;
+
+  runApp(const NovaryxApp());
 }
 
 Future<void> _initializeSupabaseDirectly() async {
