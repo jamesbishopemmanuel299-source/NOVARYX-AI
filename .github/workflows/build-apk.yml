@@ -148,12 +148,9 @@ jobs:
         continue-on-error: true
 
       - name: Build one universal release APK
-        env:
-          SUPABASE_PUBLISHABLE_KEY: ${{ secrets.SUPABASE_PUBLISHABLE_KEY }}
         run: >-
           flutter build apk --release
           --obfuscate --tree-shake-icons --split-debug-info=build/symbols
-          --dart-define=SUPABASE_PUBLISHABLE_KEY="$SUPABASE_PUBLISHABLE_KEY"
 
       - name: Report universal APK size
         run: |
