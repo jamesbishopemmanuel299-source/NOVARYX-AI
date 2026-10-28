@@ -396,7 +396,7 @@ class _TopUpScreenState extends State<TopUpScreen> {
     if (transactionId == null || transactionId.isEmpty) return;
     setState(() { _busy = true; _status = 'Verifying payment with Flutterwave…'; });
     try {
-      final response = await Supabase.instance._renderGatewayInvoke({
+      final response = await _renderGatewayInvoke({
         'action': 'credit-purchase-verify', 'tx_ref': ref, 'transaction_id': transactionId,
       });
       final data = _decodeBody(jsonEncode(response.data));
@@ -967,12 +967,11 @@ class _HomeScreenState extends State<HomeScreen> {
       if (session == null) {
         throw Exception('Sign in to your Supabase account in Settings before using AI services.');
       }
-      final response = await Supabase.instance.client.functions
-          .invoke(
-            'provider-gateway',
-            body: {'action': 'chat', 'model': model, 'messages': history},
-          )
-          .timeout(const Duration(seconds: 90));
+      final response = await _renderGatewayInvoke({
+        'action': 'chat',
+        'model': model,
+        'messages': history,
+      }).timeout(const Duration(seconds: 90));
       final body = _decodeBody(jsonEncode(response.data));
       if (response.status < 200 || response.status >= 300) {
         throw Exception(_errorFrom(body, response.status));
