@@ -72,7 +72,7 @@ const server = http.createServer(async (req, res) => {
       return sendJson(res, 500, { error: "Website interface file is missing from the deployment." });
     }
     const html = fs.readFileSync(INDEX_FILE, "utf8");
-    const chatUi = \`
+    const chatUi = `
 <style id="novaryx-chatgpt-refresh">
 :root{color-scheme:dark;--chat-bg:#212121;--chat-side:#171717;--chat-panel:#2f2f2f;--chat-line:#414141;--chat-text:#f4f4f4;--chat-muted:#aaa}
 body{background:var(--chat-bg)!important;color:var(--chat-text)!important}body:before{display:none!important}
@@ -98,7 +98,7 @@ body.chat-layout #page-chat{display:flex!important;flex-direction:column;min-hei
 </style>
 <script id="novaryx-chat-default">
 (function(){var originalShowApp=window.showApp;if(typeof originalShowApp==="function"){window.showApp=function(){originalShowApp();document.body.classList.add("chat-layout");if(typeof window.goPage==="function")window.goPage("chat");};}document.addEventListener("DOMContentLoaded",function(){var input=document.getElementById("chatInput");if(input){input.placeholder="Message NOVARYX-AI";input.addEventListener("keydown",function(e){if(e.key==="Enter"&&!e.shiftKey){e.preventDefault();var form=document.getElementById("chatForm");if(form)form.requestSubmit();}});}});})();
-</script>\`;
+</script>`;
     const scriptStart = chatUi.indexOf('<script id="novaryx-chat-default">');
     const enhancedHtml = html.replace("</head>", chatUi.slice(0, scriptStart) + "</head>").replace("</body>", chatUi.slice(scriptStart) + "</body>");
     res.writeHead(200, {
