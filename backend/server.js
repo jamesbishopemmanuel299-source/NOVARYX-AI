@@ -7,6 +7,8 @@ const SUPABASE_URL = String(process.env.SUPABASE_URL || "").trim().replace(/\/+$
 const SUPABASE_PUBLISHABLE_KEY = String(
   process.env.SUPABASE_PUBLISHABLE_KEY || process.env.SUPABASE_ANON_KEY || ""
 ).trim();
+// Secret key is server-only and is never returned by /api/config.
+const SUPABASE_SECRET_KEY = String(process.env.SUPABASE_SECRET_KEY || "").trim();
 const INDEX_FILE = path.join(__dirname, "public", "index.html");
 
 function sendJson(res, status, body) {
@@ -186,7 +188,7 @@ body:before{content:"";display:block!important;position:fixed;inset:-20%;z-index
         headers: {
           "content-type": "application/json",
           "accept": "application/json",
-          "apikey": SUPABASE_PUBLISHABLE_KEY,
+          "apikey": SUPABASE_SECRET_KEY || SUPABASE_PUBLISHABLE_KEY,
           "authorization": authorization,
         },
         body: JSON.stringify(body),
