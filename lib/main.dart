@@ -370,6 +370,7 @@ class _LoginScreenState extends State<LoginScreen> {
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
   bool _creatingAccount = false;
+  bool _obscurePassword = true;
   bool _busy = false;
   String? _exactError;
   String? _errorType;
@@ -379,6 +380,40 @@ class _LoginScreenState extends State<LoginScreen> {
     _emailController.dispose();
     _passwordController.dispose();
     super.dispose();
+  }
+
+  Future<void> _resetPassword() async {
+    final email = _emailController.text.trim();
+    if (email.isEmpty || !email.contains('@')) {
+      setState(() {
+        _errorType = 'InputValidation';
+        _exactError = 'Enter your account email address above, then tap Forgot password.';
+      });
+      return;
+    }
+    setState(() { _busy = true; _exactError = null; _errorType = null; });
+    try {
+      await _supabaseInitialization?.timeout(const Duration(seconds: 30));
+      if (!Supabase.instance.isInitialized) {
+        throw StateError(_supabaseStartupError ??
+            'Supabase initialization has not completed. Check the project URL and public key.');
+      }
+      await Supabase.instance.client.auth.resetPasswordForEmail(email)
+          .timeout(const Duration(seconds: 30));
+      if (!mounted) return;
+      setState(() {
+        _errorType = 'PasswordResetEmailSent';
+        _exactError = 'If an account exists for $email, a password-reset email has been requested. Check your inbox and spam folder, then follow the link to reset your password.';
+      });
+    } catch (error) {
+      if (!mounted) return;
+      setState(() {
+        _errorType = error.runtimeType.toString();
+        _exactError = 'Could not request a password reset: ${error.toString()}';
+      });
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
   }
 
   Future<void> _authenticate() async {
@@ -547,11 +582,27 @@ class _LoginScreenState extends State<LoginScreen> {
                           const SizedBox(height: 14),
                           TextField(
                             controller: _passwordController,
-                            obscureText: true,
+                            obscureText: _obscurePassword,
                             autofillHints: const [AutofillHints.password],
                             enabled: !_busy,
-                            decoration: const InputDecoration(labelText: 'Password', prefixIcon: Icon(Icons.password_rounded)),
+                            decoration: InputDecoration(
+                              labelText: 'Password',
+                              prefixIcon: const Icon(Icons.password_rounded),
+                              suffixIcon: IconButton(
+                                tooltip: _obscurePassword ? 'Show password' : 'Hide password',
+                                onPressed: _busy ? null : () => setState(() => _obscurePassword = !_obscurePassword),
+                                icon: Icon(_obscurePassword ? Icons.visibility_outlined : Icons.visibility_off_outlined),
+                              ),
+                            ),
                           ),
+                          if (!_creatingAccount)
+                            Align(
+                              alignment: Alignment.centerRight,
+                              child: TextButton(
+                                onPressed: _busy ? null : _resetPassword,
+                                child: const Text('Forgot password?', style: TextStyle(color: Color(0xFF83CFFF), fontWeight: FontWeight.w700)),
+                              ),
+                            ),
                           const SizedBox(height: 20),
                           Container(
                             decoration: BoxDecoration(
