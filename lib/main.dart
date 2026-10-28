@@ -14,29 +14,50 @@ import 'package:url_launcher/url_launcher.dart';
 
 const String _supabaseUrlFromBuild = String.fromEnvironment('SUPABASE_URL');
 const String _supabaseKeyFromBuild = String.fromEnvironment('SUPABASE_PUBLISHABLE_KEY');
+const String _renderApiUrlFromBuild = String.fromEnvironment('RENDER_API_URL');
 
-// Keep the project URL configurable at build time. Trim accidental whitespace
-// from GitHub Actions secrets and reject malformed URLs before auth requests.
+String? _renderSupabaseUrl;
+String? _renderSupabasePublishableKey;
+
+String get renderApiBaseUrl {
+  final configured = _renderApiUrlFromBuild.trim();
+  final url = (configured.isEmpty
+          ? 'https://novaryx-ai.onrender.com'
+          : configured)
+      .replaceFirst(RegExp(r'/+$'), '');
+  final parsed = Uri.tryParse(url);
+  if (parsed == null ||
+      parsed.scheme != 'https' ||
+      parsed.host.isEmpty ||
+      !parsed.host.endsWith('onrender.com')) {
+    throw StateError(
+      'Invalid Render API URL. Configure RENDER_API_URL with your HTTPS Render service URL.',
+    );
+  }
+  return url;
+}
+
+// Render supplies the active Supabase project configuration at startup.
+// Build-time values remain as a fallback if the Render service is unavailable.
 String get defaultSupabaseUrl {
-  final configured = _supabaseUrlFromBuild.trim();
-  final url = configured.isEmpty
+  final url = (_renderSupabaseUrl ?? _supabaseUrlFromBuild).trim().isEmpty
       ? 'https://vihbsfrwnslnmheowkhy.supabase.co'
-      : configured;
+      : (_renderSupabaseUrl ?? _supabaseUrlFromBuild).trim();
   final parsed = Uri.tryParse(url);
   if (parsed == null ||
       parsed.scheme != 'https' ||
       parsed.host.isEmpty ||
       !parsed.host.endsWith('.supabase.co')) {
     throw StateError(
-      'Invalid Supabase URL. Set SUPABASE_URL to the HTTPS Project URL '
-      'copied from Supabase Dashboard → Project Settings → API.',
+      'Invalid Supabase URL returned by Render or configured at build time.',
     );
   }
   return url;
 }
 
 String get defaultSupabasePublishableKey {
-  final configured = _supabaseKeyFromBuild.trim();
+  final configured =
+      (_renderSupabasePublishableKey ?? _supabaseKeyFromBuild).trim();
   return configured.isEmpty
       ? 'sb_publishable_S0ImKaUwYR4ENuNoLi3zWg_0SFoGqgJ'
       : configured;
@@ -48,35 +69,117 @@ Future<void>? _supabaseInitialization;
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  // Initialize authentication before the first frame so the app always opens
-  // on the login screen with Supabase ready (or a visible startup error).
-  _supabaseInitialization = _initializeSupabaseDirectly();
+  // Load configuration from Render before showing the login screen.
+  _supabaseInitialization = _initializeSupabaseViaRender();
   await _supabaseInitialization;
 
   runApp(const NovaryxApp());
 }
 
-Future<void> _initializeSupabaseDirectly() async {
+Future<void> _initializeSupabaseViaRender() async {
+  Object? renderError;
   try {
-    // Initialize Supabase directly from the public project URL and
-    // anon/publishable key. No intermediary config server is required.
-    final url = defaultSupabaseUrl;
-    final key = defaultSupabasePublishableKey.trim();
-    if (key.isEmpty) {
+    final response = await http
+        .get(
+          Uri.parse('${renderApiBaseUrl}/api/config'),
+          headers: const {'Accept': 'application/json'},
+        )
+        .timeout(const Duration(seconds: 60));
+
+    if (response.statusCode != 200) {
       throw StateError(
-        'Missing Supabase public anon/publishable key. Set '
-        'SUPABASE_PUBLISHABLE_KEY in your GitHub Actions build secrets '
-        'or configure the public key in defaultSupabasePublishableKey.',
+        'Render configuration request failed with HTTP ${response.statusCode}.',
       );
     }
+
+    final decoded = jsonDecode(response.body);
+    if (decoded is! Map) {
+      throw const FormatException('Render /api/config did not return a JSON object.');
+    }
+
+    final root = Map<String, dynamic>.from(decoded);
+    final nested = root['config'] is Map
+        ? Map<String, dynamic>.from(root['config'] as Map)
+        : root['data'] is Map
+            ? Map<String, dynamic>.from(root['data'] as Map)
+            : root;
+
+    String readFirst(List<String> names) {
+      for (final name in names) {
+        final value = nested[name] ?? root[name];
+        if (value is String && value.trim().isNotEmpty) {
+          return value.trim();
+        }
+      }
+      return '';
+    }
+
+    final url = readFirst([
+      'supabaseUrl',
+      'supabase_url',
+      'SUPABASE_URL',
+      'projectUrl',
+      'url',
+    ]);
+    final key = readFirst([
+      'supabasePublishableKey',
+      'supabase_publishable_key',
+      'SUPABASE_PUBLISHABLE_KEY',
+      'publishableKey',
+      'publishable_key',
+      'anonKey',
+      'anon_key',
+    ]);
+
+    final parsedUrl = Uri.tryParse(url);
+    if (parsedUrl == null ||
+        parsedUrl.scheme != 'https' ||
+        parsedUrl.host.isEmpty ||
+        !parsedUrl.host.endsWith('.supabase.co')) {
+      throw const FormatException(
+        'Render /api/config did not return a valid HTTPS Supabase project URL.',
+      );
+    }
+    if (key.isEmpty) {
+      throw const FormatException(
+        'Render /api/config did not return a Supabase publishable/anon key.',
+      );
+    }
+
+    _renderSupabaseUrl = url;
+    _renderSupabasePublishableKey = key;
     await Supabase.initialize(url: url, publishableKey: key);
     _supabaseStartupError = null;
-    debugPrint('NOVARYX-AI Supabase initialized directly.');
-  } catch (error, stackTrace) {
-    _supabaseStartupError = error.toString();
-    debugPrint('NOVARYX-AI Supabase startup error: $error');
-    debugPrintStack(stackTrace: stackTrace);
+    debugPrint('NOVARYX-AI loaded Supabase configuration from Render.');
+    return;
+  } catch (error) {
+    renderError = error;
+    debugPrint('NOVARYX-AI Render configuration request failed: $error');
   }
+
+  // Preserve login access for existing builds if valid build-time secrets exist.
+  final fallbackUrl = _supabaseUrlFromBuild.trim();
+  final fallbackKey = _supabaseKeyFromBuild.trim();
+  if (fallbackUrl.isNotEmpty && fallbackKey.isNotEmpty) {
+    try {
+      await Supabase.initialize(
+        url: fallbackUrl,
+        publishableKey: fallbackKey,
+      );
+      _supabaseStartupError = null;
+      debugPrint(
+        'NOVARYX-AI initialized using build-time Supabase configuration as fallback.',
+      );
+      return;
+    } catch (error, stackTrace) {
+      debugPrint('NOVARYX-AI Supabase fallback initialization failed: $error');
+      debugPrintStack(stackTrace: stackTrace);
+    }
+  }
+
+  _supabaseStartupError =
+      'Could not load login configuration from Render. Check that the Render service is running and /api/config returns supabaseUrl and supabasePublishableKey. Details: $renderError';
+  debugPrint('NOVARYX-AI startup error: $_supabaseStartupError');
 }
 
 class NovaryxApp extends StatelessWidget {
