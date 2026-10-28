@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
+import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
@@ -95,36 +96,38 @@ class NovaryxApp extends StatelessWidget {
           primary: const Color(0xFF00EFFF),
           secondary: const Color(0xFFB33CFF),
         ),
-        scaffoldBackgroundColor: const Color(0xFF030716),
+        scaffoldBackgroundColor: const Color(0xFF02040A),
         appBarTheme: const AppBarTheme(
-          backgroundColor: Color(0xFF05091B),
+          backgroundColor: Color(0xCC050B18),
           foregroundColor: Color(0xFFF4FAFF),
           elevation: 0,
           centerTitle: false,
+          surfaceTintColor: Colors.transparent,
         ),
         navigationBarTheme: NavigationBarThemeData(
-          backgroundColor: const Color(0xFF05091B),
-          indicatorColor: const Color(0xFF123C70),
+          backgroundColor: const Color(0xE6080F20),
+          indicatorColor: const Color(0xFF124A91),
           labelTextStyle: WidgetStateProperty.resolveWith((states) => TextStyle(
             color: states.contains(WidgetState.selected) ? const Color(0xFF00EFFF) : const Color(0xFF8493B8),
             fontWeight: states.contains(WidgetState.selected) ? FontWeight.w700 : FontWeight.w500,
           )),
         ),
         cardTheme: CardThemeData(
-          color: const Color(0xFF0A1230),
+          color: const Color(0xB30A1730),
           elevation: 0,
+          surfaceTintColor: Colors.transparent,
           shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(18),
-            side: const BorderSide(color: Color(0xFF173568)),
+            borderRadius: BorderRadius.circular(22),
+            side: const BorderSide(color: Color(0x663A8DFF)),
           ),
         ),
         useMaterial3: true,
         inputDecorationTheme: InputDecorationTheme(
           filled: true,
-          fillColor: const Color(0xFF080F28),
-          border: OutlineInputBorder(borderRadius: BorderRadius.circular(16), borderSide: const BorderSide(color: Color(0xFF244A82))),
-          enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(16), borderSide: const BorderSide(color: Color(0xFF244A82))),
-          focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(16), borderSide: const BorderSide(color: Color(0xFF00EFFF), width: 1.5)),
+          fillColor: const Color(0xAA07152A),
+          border: OutlineInputBorder(borderRadius: BorderRadius.circular(17), borderSide: const BorderSide(color: Color(0x664A86D8))),
+          enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(17), borderSide: const BorderSide(color: Color(0x664A86D8))),
+          focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(17), borderSide: const BorderSide(color: Color(0xFF36A8FF), width: 1.7)),
         ),
       ),
       home: const LoginScreen(),
@@ -336,6 +339,27 @@ class ProviderSettings {
 }
 
 
+class _LiquidGlow extends StatelessWidget {
+  const _LiquidGlow({required this.color, required this.size});
+  final Color color;
+  final double size;
+
+  @override
+  Widget build(BuildContext context) => IgnorePointer(
+    child: Container(
+      width: size,
+      height: size,
+      decoration: BoxDecoration(
+        shape: BoxShape.circle,
+        gradient: RadialGradient(
+          colors: [color.withValues(alpha: .34), color.withValues(alpha: .10), Colors.transparent],
+          stops: const [0, .48, 1],
+        ),
+      ),
+    ),
+  );
+}
+
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
   @override
@@ -425,85 +449,191 @@ class _LoginScreenState extends State<LoginScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('NOVARYX account')),
-      body: ListView(
-        padding: const EdgeInsets.all(20),
+      extendBodyBehindAppBar: true,
+      appBar: AppBar(
+        title: const Text('NOVARYX-AI', style: TextStyle(fontWeight: FontWeight.w800, letterSpacing: 1.2)),
+        backgroundColor: Colors.transparent,
+      ),
+      body: Stack(
         children: [
-          const Icon(Icons.lock_person_outlined, size: 56, color: Color(0xFF00EFFF)),
-          const SizedBox(height: 14),
-          Text(_creatingAccount ? 'Create your account' : 'Sign in',
-              textAlign: TextAlign.center,
-              style: const TextStyle(fontSize: 25, fontWeight: FontWeight.w800)),
-          const SizedBox(height: 8),
-          const Text('If authentication fails, the original exception details appear below.',
-              textAlign: TextAlign.center, style: TextStyle(color: Colors.white60)),
-          const SizedBox(height: 24),
-          TextField(
-            controller: _emailController,
-            keyboardType: TextInputType.emailAddress,
-            autofillHints: const [AutofillHints.email],
-            enabled: !_busy,
-            decoration: const InputDecoration(labelText: 'Email address', prefixIcon: Icon(Icons.email_outlined)),
-          ),
-          const SizedBox(height: 12),
-          TextField(
-            controller: _passwordController,
-            obscureText: true,
-            autofillHints: const [AutofillHints.password],
-            enabled: !_busy,
-            decoration: const InputDecoration(labelText: 'Password', prefixIcon: Icon(Icons.lock_outline)),
-          ),
-          const SizedBox(height: 16),
-          FilledButton(
-            onPressed: _busy ? null : _authenticate,
-            child: Padding(
-              padding: const EdgeInsets.symmetric(vertical: 12),
-              child: _busy
-                  ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2))
-                  : Text(_creatingAccount ? 'Create account' : 'Sign in'),
-            ),
-          ),
-          TextButton(
-            onPressed: _busy ? null : () => setState(() {
-              _creatingAccount = !_creatingAccount;
-              _exactError = null;
-              _errorType = null;
-            }),
-            child: Text(_creatingAccount ? 'Already have an account? Sign in' : 'New to NOVARYX? Create an account'),
-          ),
-          if (_exactError != null) ...[
-            const SizedBox(height: 18),
-            Container(
-              width: double.infinity,
-              padding: const EdgeInsets.all(14),
+          const Positioned.fill(
+            child: DecoratedBox(
               decoration: BoxDecoration(
-                color: const Color(0xFF35131D),
-                border: Border.all(color: const Color(0xFFFF647C)),
-                borderRadius: BorderRadius.circular(14),
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Row(children: [
-                    Icon(Icons.error_outline, color: Color(0xFFFF647C)),
-                    SizedBox(width: 8),
-                    Expanded(child: Text('LOGIN ERROR — EXACT DETAILS',
-                      style: TextStyle(color: Color(0xFFFF8798), fontWeight: FontWeight.w800))),
-                  ]),
-                  const SizedBox(height: 10),
-                  Text('Error type: ${_errorType ?? 'Unknown'}'),
-                  const SizedBox(height: 6),
-                  SelectableText(_exactError!, style: const TextStyle(color: Colors.white)),
-                  const SizedBox(height: 12),
-                  OutlinedButton.icon(
-                    onPressed: _busy ? null : _authenticate,
-                    icon: const Icon(Icons.refresh),
-                    label: const Text('Retry'),
-                  ),
-                ],
+                gradient: LinearGradient(
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                  colors: [Color(0xFF02050D), Color(0xFF06152B), Color(0xFF02040A)],
+                ),
               ),
             ),
-          ],
+          ),
+          Positioned(top: -90, right: -70, child: _LiquidGlow(color: Color(0xFF087CFF), size: 250)),
+          Positioned(top: 260, left: -120, child: _LiquidGlow(color: Color(0xFF0645B8), size: 230)),
+          SafeArea(
+            child: ListView(
+              padding: const EdgeInsets.fromLTRB(22, 24, 22, 32),
+              children: [
+                const SizedBox(height: 10),
+                Center(
+                  child: Container(
+                    width: 88,
+                    height: 88,
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(28),
+                      gradient: const LinearGradient(
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
+                        colors: [Color(0xFF36B9FF), Color(0xFF0754D8), Color(0xFF061A45)],
+                      ),
+                      border: Border.all(color: const Color(0xFF8AD9FF).withValues(alpha: .8), width: 1.2),
+                      boxShadow: [BoxShadow(color: const Color(0xFF087CFF).withValues(alpha: .4), blurRadius: 32, spreadRadius: 1)],
+                    ),
+                    child: const Icon(Icons.auto_awesome, color: Colors.white, size: 42),
+                  ),
+                ),
+                const SizedBox(height: 18),
+                const Text('NOVARYX-AI', textAlign: TextAlign.center,
+                  style: TextStyle(fontSize: 29, letterSpacing: 2.2, fontWeight: FontWeight.w900, color: Colors.white)),
+                const SizedBox(height: 7),
+                Text(_creatingAccount ? 'Create your account. Unlock your creativity.' : 'Your AI workspace. Your next idea starts here.',
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(fontSize: 13, color: Color(0xFF9AB9E7), letterSpacing: .25)),
+                const SizedBox(height: 28),
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(28),
+                  child: BackdropFilter(
+                    filter: ui.ImageFilter.blur(sigmaX: 18, sigmaY: 18),
+                    child: Container(
+                      padding: const EdgeInsets.all(22),
+                      decoration: BoxDecoration(
+                        gradient: LinearGradient(
+                          begin: Alignment.topLeft,
+                          end: Alignment.bottomRight,
+                          colors: [const Color(0xCC102744), const Color(0xB3091428), const Color(0xAA071020)],
+                        ),
+                        borderRadius: BorderRadius.circular(28),
+                        border: Border.all(color: const Color(0x6659B8FF), width: 1.1),
+                        boxShadow: [BoxShadow(color: const Color(0xFF006DFF).withValues(alpha: .12), blurRadius: 30, spreadRadius: 2)],
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          Row(
+                            children: [
+                              Container(
+                                width: 42, height: 42,
+                                decoration: BoxDecoration(
+                                  color: const Color(0xFF0D3C78).withValues(alpha: .7),
+                                  borderRadius: BorderRadius.circular(14),
+                                  border: Border.all(color: const Color(0xFF46B7FF).withValues(alpha: .6)),
+                                ),
+                                child: Icon(_creatingAccount ? Icons.person_add_alt_1 : Icons.lock_open_rounded, color: const Color(0xFF67CCFF)),
+                              ),
+                              const SizedBox(width: 12),
+                              Expanded(child: Text(_creatingAccount ? 'Create account' : 'Welcome back',
+                                style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w800, color: Colors.white))),
+                            ],
+                          ),
+                          const SizedBox(height: 8),
+                          const Text('Secure access to your creative studio', style: TextStyle(color: Color(0xFF9DB4D6), fontSize: 12)),
+                          const SizedBox(height: 24),
+                          TextField(
+                            controller: _emailController,
+                            keyboardType: TextInputType.emailAddress,
+                            autofillHints: const [AutofillHints.email],
+                            enabled: !_busy,
+                            decoration: const InputDecoration(labelText: 'Email address', prefixIcon: Icon(Icons.alternate_email_rounded)),
+                          ),
+                          const SizedBox(height: 14),
+                          TextField(
+                            controller: _passwordController,
+                            obscureText: true,
+                            autofillHints: const [AutofillHints.password],
+                            enabled: !_busy,
+                            decoration: const InputDecoration(labelText: 'Password', prefixIcon: Icon(Icons.password_rounded)),
+                          ),
+                          const SizedBox(height: 20),
+                          Container(
+                            decoration: BoxDecoration(
+                              borderRadius: BorderRadius.circular(17),
+                              boxShadow: [BoxShadow(color: const Color(0xFF087CFF).withValues(alpha: .3), blurRadius: 18, offset: const Offset(0, 6))],
+                            ),
+                            child: FilledButton(
+                              onPressed: _busy ? null : _authenticate,
+                              style: FilledButton.styleFrom(
+                                backgroundColor: const Color(0xFF1267E8),
+                                foregroundColor: Colors.white,
+                                padding: const EdgeInsets.symmetric(vertical: 17),
+                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(17)),
+                              ),
+                              child: _busy
+                                  ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2))
+                                  : Text(_creatingAccount ? 'CREATE ACCOUNT  →' : 'SIGN IN  →',
+                                      style: const TextStyle(fontWeight: FontWeight.w800, letterSpacing: 1.1)),
+                            ),
+                          ),
+                          const SizedBox(height: 8),
+                          TextButton(
+                            onPressed: _busy ? null : () => setState(() {
+                              _creatingAccount = !_creatingAccount;
+                              _exactError = null;
+                              _errorType = null;
+                            }),
+                            child: Text(_creatingAccount ? 'Already registered? Sign in' : 'New to NOVARYX? Create an account',
+                              style: const TextStyle(color: Color(0xFF83CFFF), fontWeight: FontWeight.w600)),
+                          ),
+                          if (_exactError != null) ...[
+                            const SizedBox(height: 14),
+                            Container(
+                              width: double.infinity,
+                              padding: const EdgeInsets.all(14),
+                              decoration: BoxDecoration(
+                                color: const Color(0xDD35131D),
+                                border: Border.all(color: const Color(0xFFFF647C)),
+                                borderRadius: BorderRadius.circular(16),
+                              ),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  const Row(children: [
+                                    Icon(Icons.error_outline, color: Color(0xFFFF647C)),
+                                    SizedBox(width: 8),
+                                    Expanded(child: Text('SIGN-IN ERROR',
+                                      style: TextStyle(color: Color(0xFFFF8798), fontWeight: FontWeight.w800))),
+                                  ]),
+                                  const SizedBox(height: 10),
+                                  Text('Error type: ${_errorType ?? 'Unknown'}'),
+                                  const SizedBox(height: 6),
+                                  SelectableText(_exactError!, style: const TextStyle(color: Colors.white)),
+                                  const SizedBox(height: 12),
+                                  OutlinedButton.icon(
+                                    onPressed: _busy ? null : _authenticate,
+                                    icon: const Icon(Icons.refresh),
+                                    label: const Text('Retry'),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 18),
+                const Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(Icons.shield_outlined, size: 15, color: Color(0xFF4B9DEB)),
+                    SizedBox(width: 7),
+                    Text('PRIVATE  •  SECURE  •  BUILT FOR CREATORS',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(fontSize: 9, letterSpacing: 1.1, color: Color(0xFF6F8DB7), fontWeight: FontWeight.w700)),
+                  ],
+                ),
+              ],
+            ),
+          ),
         ],
       ),
     );
