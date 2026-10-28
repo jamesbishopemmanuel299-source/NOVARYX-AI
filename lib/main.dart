@@ -20,7 +20,7 @@ const String _supabaseKeyFromBuild = String.fromEnvironment('SUPABASE_PUBLISHABL
 String get defaultSupabaseUrl {
   final configured = _supabaseUrlFromBuild.trim();
   final url = configured.isEmpty
-      ? 'https://vihbsfrwnslnmheowkhy.supabase.co'
+      ? 'https://vihbsfrwnslnmheowky.supabase.co'
       : configured;
   final parsed = Uri.tryParse(url);
   if (parsed == null ||
@@ -59,7 +59,7 @@ Future<void> main() async {
 Future<void> _initializeSupabaseDirectly() async {
   try {
     // Initialize Supabase directly from the public project URL and
-    // anon/publishable key. No Render config endpoint is required.
+    // anon/publishable key. No intermediary config server is required.
     final url = defaultSupabaseUrl;
     final key = defaultSupabasePublishableKey.trim();
     if (key.isEmpty) {
@@ -438,7 +438,7 @@ class _LoginScreenState extends State<LoginScreen> {
       setState(() {
         _errorType = error.runtimeType.toString();
         _exactError = isHostLookupFailure
-            ? '$rawError\n\nConnection diagnosis: the device could not resolve the configured hostname. Check the Render config endpoint and verify that its SUPABASE_URL is the exact active Project URL from Supabase Dashboard → Project Settings → API. This is a server/DNS connection error, not an email or password error.'
+            ? '$rawError\n\nConnection diagnosis: the device could not resolve the configured hostname. Verify that the Supabase Project URL is the exact active URL from Supabase Dashboard → Project Settings → API, and check the device internet/DNS connection. This is a network/hostname error, not an email or password error.'
             : rawError;
       });
     } finally {
