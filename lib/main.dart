@@ -182,6 +182,43 @@ Future<void> _initializeSupabaseViaRender() async {
   debugPrint('NOVARYX-AI startup error: $_supabaseStartupError');
 }
 
+
+class _RenderGatewayResponse {
+  const _RenderGatewayResponse({required this.status, required this.data});
+  final int status;
+  final dynamic data;
+}
+
+Future<_RenderGatewayResponse> _renderGatewayInvoke(
+  Map<String, dynamic> body,
+) async {
+  final session = Supabase.instance.client.auth.currentSession;
+  if (session == null) {
+    throw StateError('Sign in before using NOVARYX-AI provider services.');
+  }
+
+  final response = await http
+      .post(
+        Uri.parse('${renderApiBaseUrl}/api/provider-gateway'),
+        headers: {
+          'Accept': 'application/json',
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer ${session.accessToken}',
+          'apikey': defaultSupabasePublishableKey,
+        },
+        body: jsonEncode(body),
+      )
+      .timeout(const Duration(seconds: 120));
+
+  dynamic decoded;
+  try {
+    decoded = jsonDecode(response.body);
+  } catch (_) {
+    decoded = {'error': response.body.isEmpty ? 'Render returned an empty response.' : response.body};
+  }
+  return _RenderGatewayResponse(status: response.statusCode, data: decoded);
+}
+
 class NovaryxApp extends StatelessWidget {
   const NovaryxApp({super.key});
 
@@ -320,7 +357,7 @@ class _TopUpScreenState extends State<TopUpScreen> {
     }
     setState(() { _busy = true; _status = 'Creating secure checkout…'; _selectedCredits = package.credits; });
     try {
-      final response = await client.functions.invoke('provider-gateway', body: {
+      final response = await _renderGatewayInvoke({
         'action': 'credit-purchase-initialize', 'credits': package.credits,
         'email': user.email,
       });
@@ -359,7 +396,7 @@ class _TopUpScreenState extends State<TopUpScreen> {
     if (transactionId == null || transactionId.isEmpty) return;
     setState(() { _busy = true; _status = 'Verifying payment with Flutterwave…'; });
     try {
-      final response = await Supabase.instance.client.functions.invoke('provider-gateway', body: {
+      final response = await Supabase.instance._renderGatewayInvoke({
         'action': 'credit-purchase-verify', 'tx_ref': ref, 'transaction_id': transactionId,
       });
       final data = _decodeBody(jsonEncode(response.data));
@@ -1461,8 +1498,7 @@ class _GenerationScreenState extends State<GenerationScreen> {
       final referenceVideoUrl = needsReferenceVideo && _referenceVideoPath != null
           ? await _uploadReferenceFile(_referenceVideoPath!, 'video')
           : null;
-      final createResponse = await Supabase.instance.client.functions
-          .invoke('provider-gateway', body: {
+      final createResponse = await _renderGatewayInvoke({
             'action': 'kie-create',
             'generationKind': widget.kind.name,
             'model': model,
@@ -1485,8 +1521,7 @@ class _GenerationScreenState extends State<GenerationScreen> {
       for (var i = 0; i < 60; i++) {
         await Future<void>.delayed(const Duration(seconds: 5));
         if (!mounted) return;
-        final pollResponse = await Supabase.instance.client.functions
-            .invoke('provider-gateway', body: {
+        final pollResponse = await _renderGatewayInvoke({
               'action': 'kie-poll',
               'taskId': taskId,
             })
