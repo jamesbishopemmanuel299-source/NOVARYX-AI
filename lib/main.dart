@@ -299,7 +299,14 @@ class _CreditsBalanceBadgeState extends State<CreditsBalanceBadge> {
     future: _balance,
     builder: (context, snapshot) => InkWell(
       borderRadius: BorderRadius.circular(30),
-      onTap: () => setState(() => _balance = _load()),
+      onTap: () {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Check your history to see your generation activity and results.')),
+        );
+        Navigator.of(context).push(
+          MaterialPageRoute(builder: (_) => const GenerationHistoryScreen()),
+        );
+      },
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 8),
         decoration: BoxDecoration(
@@ -1778,6 +1785,27 @@ class _GenerationScreenState extends State<GenerationScreen> {
           labelStyle: TextStyle(color: _selectedStyle == style ? const Color(0xFF00EFFF) : Colors.white70),
         )).toList()),
         const SizedBox(height: 24),
+        Container(
+          margin: const EdgeInsets.only(bottom: 14),
+          padding: const EdgeInsets.all(12),
+          decoration: BoxDecoration(
+            color: const Color(0xFF092543),
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(color: const Color(0x664A86D8)),
+          ),
+          child: const Row(
+            children: [
+              Icon(Icons.bolt, color: Color(0xFF00EFFF), size: 20),
+              SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  'Credit usage and completed generations are available in History.',
+                  style: TextStyle(color: Colors.white70, fontSize: 12),
+                ),
+              ),
+            ],
+          ),
+        ),
         Text('Describe what you want', style: Theme.of(context).textTheme.titleMedium),
         const SizedBox(height: 10),
         TextField(
