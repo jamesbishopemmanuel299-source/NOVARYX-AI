@@ -69,7 +69,7 @@ Future<void> _initializeSupabaseDirectly() async {
         'or configure the public key in defaultSupabasePublishableKey.',
       );
     }
-    await Supabase.initialize(url: url, anonKey: key);
+    await Supabase.initialize(url: url, publishableKey: key);
     _supabaseStartupError = null;
     debugPrint('NOVARYX-AI Supabase initialized directly.');
   } catch (error, stackTrace) {
@@ -334,7 +334,7 @@ class ProviderSettings {
       }
       return;
     }
-    await Supabase.initialize(url: resolvedUrl, anonKey: resolvedKey);
+    await Supabase.initialize(url: resolvedUrl, publishableKey: resolvedKey);
   }
 }
 
