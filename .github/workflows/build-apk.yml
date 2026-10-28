@@ -147,15 +147,38 @@ jobs:
         run: flutter analyze
         continue-on-error: true
 
+      - name: Verify Supabase GitHub secrets
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_PUBLISHABLE_KEY: ${{ secrets.SUPABASE_PUBLISHABLE_KEY }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ -z "${SUPABASE_URL}" ]; then
+            echo "::error::Missing GitHub Actions secret SUPABASE_URL. Add it in Settings → Secrets and variables → Actions."
+            exit 1
+          fi
+          if [ -z "${SUPABASE_PUBLISHABLE_KEY}" ]; then
+            echo "::error::Missing GitHub Actions secret SUPABASE_PUBLISHABLE_KEY. Add it in Settings → Secrets and variables → Actions."
+            exit 1
+          fi
+          case "${SUPABASE_URL}" in
+            https://*.supabase.co) ;;
+            *) echo "::error::SUPABASE_URL must be the HTTPS Project URL from Supabase settings."; exit 1 ;;
+          esac
+          echo "Supabase URL and publishable key secrets are present."
+
       - name: Build one universal release APK
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_PUBLISHABLE_KEY: ${{ secrets.SUPABASE_PUBLISHABLE_KEY }}
-        run: >-
-          flutter build apk --release
-          --dart-define=SUPABASE_URL="${SUPABASE_URL}"
-          --dart-define=SUPABASE_PUBLISHABLE_KEY="${SUPABASE_PUBLISHABLE_KEY}"
-          --obfuscate --tree-shake-icons --split-debug-info=build/symbols
+        shell: bash
+        run: |
+          set -euo pipefail
+          flutter build apk --release \
+            --dart-define="SUPABASE_URL=${SUPABASE_URL}" \
+            --dart-define="SUPABASE_PUBLISHABLE_KEY=${SUPABASE_PUBLISHABLE_KEY}" \
+            --obfuscate --tree-shake-icons --split-debug-info=build/symbols
 
       - name: Report universal APK size
         run: |
