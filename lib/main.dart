@@ -20,7 +20,7 @@ const String _supabaseKeyFromBuild = String.fromEnvironment('SUPABASE_PUBLISHABL
 String get defaultSupabaseUrl {
   final configured = _supabaseUrlFromBuild.trim();
   final url = configured.isEmpty
-      ? 'https://vihbsfrwnslnmheowky.supabase.co'
+      ? 'https://vihbsfrwnslnmheowkhy.supabase.co'
       : configured;
   final parsed = Uri.tryParse(url);
   if (parsed == null ||
@@ -38,7 +38,7 @@ String get defaultSupabaseUrl {
 String get defaultSupabasePublishableKey {
   final configured = _supabaseKeyFromBuild.trim();
   return configured.isEmpty
-      ? 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZpaGJzZnJ3bnNsbm1oZW93a3kiLCJyb2xlIjoiYW5vbiIsImlhdCI6MTc4ODAwMzIzOSwiZXhwIjoyMTAzNTc5MjM5fQ.eHAaAj7d7bhpFuBFinwxa80fW-QrjOpNwShSzSadhdA'
+      ? 'sb_publishable_S0ImKaUwYR4ENuNoLi3zWg_0SFoGqgJ'
       : configured;
 }
 
