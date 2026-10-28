@@ -1,10 +1,13 @@
 const http = require("node:http");
+const fs = require("node:fs");
+const path = require("node:path");
 
 const PORT = Number(process.env.PORT || 10000);
 const SUPABASE_URL = String(process.env.SUPABASE_URL || "").trim().replace(/\/+$/, "");
 const SUPABASE_PUBLISHABLE_KEY = String(
   process.env.SUPABASE_PUBLISHABLE_KEY || process.env.SUPABASE_ANON_KEY || ""
 ).trim();
+const INDEX_FILE = path.join(__dirname, "public", "index.html");
 
 function sendJson(res, status, body) {
   const payload = JSON.stringify(body);
@@ -64,11 +67,24 @@ const server = http.createServer(async (req, res) => {
     return res.end();
   }
 
-  if (req.method === "GET" && (url.pathname === "/" || url.pathname === "/health")) {
+  if (req.method === "GET" && url.pathname === "/") {
+    if (!fs.existsSync(INDEX_FILE)) {
+      return sendJson(res, 500, { error: "Website interface file is missing from the deployment." });
+    }
+    res.writeHead(200, {
+      "content-type": "text/html; charset=utf-8",
+      "cache-control": "no-cache",
+      "x-content-type-options": "nosniff",
+    });
+    return fs.createReadStream(INDEX_FILE).pipe(res);
+  }
+
+  if (req.method === "GET" && url.pathname === "/health") {
     return sendJson(res, 200, {
       name: "NOVARYX-AI API",
       status: "online",
       configured: isValidSupabaseConfig(),
+      website: "served",
     });
   }
 
@@ -131,5 +147,5 @@ const server = http.createServer(async (req, res) => {
 });
 
 server.listen(PORT, "0.0.0.0", () => {
-  console.log(`NOVARYX-AI Render API listening on port ${PORT}`);
+  console.log(`NOVARYX-AI web interface and API listening on port ${PORT}`);
 });
