@@ -172,10 +172,15 @@ jobs:
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_PUBLISHABLE_KEY: ${{ secrets.SUPABASE_PUBLISHABLE_KEY }}
+          RENDER_API_URL: ${{ secrets.RENDER_API_URL }}
         shell: bash
         run: |
           set -euo pipefail
+          if [ -z "${RENDER_API_URL}" ]; then
+            RENDER_API_URL="https://novaryx-ai.onrender.com"
+          fi
           flutter build apk --release \
+            --dart-define="RENDER_API_URL=${RENDER_API_URL}" \
             --dart-define="SUPABASE_URL=${SUPABASE_URL}" \
             --dart-define="SUPABASE_PUBLISHABLE_KEY=${SUPABASE_PUBLISHABLE_KEY}" \
             --obfuscate --tree-shake-icons --split-debug-info=build/symbols
