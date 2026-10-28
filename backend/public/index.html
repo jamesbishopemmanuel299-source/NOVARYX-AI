@@ -94,6 +94,81 @@ body:before{content:"";position:fixed;inset:-20%;pointer-events:none;z-index:-1;
 }
 @media(prefers-reduced-motion:reduce){*,*::before,*::after{animation-duration:.01ms!important;animation-iteration-count:1!important;scroll-behavior:auto!important;transition-duration:.01ms!important}}
 
+
+/* ChatGPT-inspired workspace layout: clean surfaces, persistent sidebar, centered composer */
+:root{--bg:#212121;--panel:rgba(38,38,38,.94);--line:rgba(255,255,255,.10);--blue:#7c9cff;--cyan:#9bdcff;--text:#ececec;--muted:#a3a3a3}
+body{background:#212121;color:var(--text)}
+body:before{display:none}
+.wrap{width:100%;max-width:none;margin:0}
+.top{position:sticky;top:0;z-index:8;padding:14px 22px;background:rgba(33,33,33,.92);border-bottom:1px solid rgba(255,255,255,.06);backdrop-filter:blur(18px)}
+.brand{letter-spacing:.02em;font-size:15px}
+.logo{width:34px;height:34px;flex-basis:34px;border-radius:50%;background:#303030;color:#fff;box-shadow:none;border:1px solid #505050}
+.gradient{background:linear-gradient(90deg,#fff,#c8d4e8);-webkit-background-clip:text;background-clip:text;color:transparent;filter:none}
+.tag{color:#aaa;letter-spacing:.05em;font-size:10px}
+.pill{background:#303030;border-color:#484848;color:#e7e7e7}
+.hero{max-width:780px;margin:auto;padding:48px 24px 18px}
+.eyebrow{color:#a7c5ff;letter-spacing:.1em}
+.hero h1{font-size:clamp(30px,4.4vw,44px);letter-spacing:-.035em}
+.sub{color:#b4b4b4}
+.glass{background:#2a2a2a;border:1px solid rgba(255,255,255,.08);border-radius:20px;box-shadow:none;backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px)}
+.auth{margin:24px auto 55px;background:#262626;border-color:#444}
+.field label{color:#c8c8c8}
+.field input,.field textarea,.field select,.chatrow textarea{background:#212121;border:1px solid #505050;color:#f5f5f5;border-radius:14px}
+.field input:focus,.field textarea:focus,.field select:focus,.chatrow textarea:focus{border-color:#888;box-shadow:0 0 0 2px #ffffff12}
+.btn{background:#f4f4f4;color:#202020;box-shadow:none;border-radius:999px}
+.btn:hover{background:#dedede;box-shadow:none;filter:none;transform:none}
+.btn.secondary{background:#353535;color:#eee;border-color:#555}
+.switch{color:#b7caff}
+.app{grid-template-columns:250px minmax(0,1fr);gap:0;padding:0;min-height:calc(100vh - 65px)}
+.side{position:sticky;top:65px;height:calc(100vh - 65px);overflow:auto;border-radius:0;border:0;border-right:1px solid rgba(255,255,255,.06);background:#171717;padding:16px 12px;box-shadow:none}
+.nav{color:#c8c8c8;border-radius:10px;padding:11px 12px}
+.nav.active,.nav:hover{background:#2f2f2f;border-color:transparent;box-shadow:none;color:#fff}
+.side>div{border-color:#353535!important}
+.main{padding:26px clamp(18px,4vw,58px) 38px;max-width:1100px;margin:0 auto;width:100%}
+.welcome{background:transparent;border:0;padding:22px 0 28px;border-radius:0;box-shadow:none}
+.welcome:after{display:none}
+.welcome h2{font-weight:650;letter-spacing:-.03em}
+.stat{background:#2c2c2c;border-color:#444;color:#d5d5d5}
+.grid{gap:12px}
+.navcard{background:#262626;border:1px solid #414141;border-radius:17px;min-height:132px}
+.navcard:after{display:none}
+.navcard:hover{transform:translateY(-1px);border-color:#666;box-shadow:none;background:#2d2d2d}
+.panel{background:#262626;border-color:#414141;border-radius:18px}
+.sectionhead h2{font-size:25px;letter-spacing:-.03em}
+.sectionhead p{color:#aaa}
+.chatlog{height:min(54vh,540px);padding:22px 0;gap:22px}
+.bubble{max-width:min(86%,760px);border-radius:18px;line-height:1.7}
+.bubble.user{background:#303030;border:1px solid #454545;color:#f5f5f5}
+.bubble.ai{background:transparent;border:0;padding-left:0;padding-right:0;color:#e6e6e6}
+.chatrow{align-items:flex-end;padding:8px;background:#303030;border:1px solid #505050;border-radius:26px;gap:10px}
+.chatrow textarea{background:transparent;border:0;box-shadow:none!important;resize:none;min-height:46px;max-height:180px;padding:12px 14px}
+.chatrow .btn{width:44px;height:44px;flex:0 0 44px;padding:0;font-size:0;position:relative}
+.chatrow .btn:after{content:"↑";font-size:22px;font-weight:700}
+.chatrow .btn:disabled{opacity:.45}
+.status{color:#aaa}
+.task{background:#202020;border-color:#444}
+.footer{color:#777}
+@media(max-width:760px){
+ .top{padding:12px 14px}
+ .app{display:flex;flex-direction:column;min-height:calc(100vh - 60px)}
+ .side{top:60px;height:auto;position:sticky;z-index:6;display:flex;overflow-x:auto;overflow-y:hidden;background:rgba(23,23,23,.96);border:0;border-bottom:1px solid #333;padding:8px;gap:5px;backdrop-filter:blur(16px)}
+ .side .nav{flex:0 0 auto;width:auto;white-space:nowrap;margin:0;padding:9px 11px;font-size:12px}
+ .side>div{border:0!important;margin:0!important;padding:0!important}
+ .main{padding:20px 14px 30px}
+ .welcome{padding:14px 2px 20px}
+ .grid{grid-template-columns:1fr}
+ .navcard{min-height:0}
+ .chatlog{height:min(48vh,430px)}
+ .chatrow{flex-direction:row}
+ .chatrow .btn{width:44px;height:44px;flex:0 0 44px}
+ .chatrow textarea{min-height:44px}
+ .bubble{max-width:94%}
+ .hero{padding:32px 18px 12px}
+ .auth{margin:16px 14px 36px}
+}
+@media(max-width:390px){.brand{font-size:12px}.tag{font-size:8px}.side .nav{font-size:11px;padding:8px 9px}}
+@media(prefers-reduced-motion:reduce){*,*::before,*::after{animation:none!important;transition:none!important}}
+
 </style></head>
 <body><div class="wrap">
 <header class="top"><div class="brand"><div class="logo">N</div><div>NOVARYX<span class="gradient">-AI</span><div class="tag">YOUR AI. YOUR CREATIVITY. YOUR DESTINY.</div></div></div><div id="topActions"><span class="pill">AI workspace</span></div></header>
