@@ -1009,12 +1009,11 @@ class _HomeScreenState extends State<HomeScreen> {
   @override
   Widget build(BuildContext context) {
     final pages = <Widget>[
-      _buildChat(),
+      _buildCreateHome(),
       const GenerationScreen(kind: GenerationKind.image),
-      const GenerationScreen(kind: GenerationKind.music),
       const GenerationScreen(kind: GenerationKind.video),
+      const GenerationScreen(kind: GenerationKind.music),
       const GenerationHistoryScreen(),
-      const TemplatesScreen(),
     ];
     return Scaffold(
       appBar: AppBar(
@@ -1038,13 +1037,79 @@ class _HomeScreenState extends State<HomeScreen> {
         selectedIndex: _selectedIndex,
         onDestinationSelected: (value) => setState(() => _selectedIndex = value),
         destinations: const [
-          NavigationDestination(icon: Icon(Icons.chat_bubble_outline), selectedIcon: Icon(Icons.chat_bubble), label: 'Chat'),
+          NavigationDestination(icon: Icon(Icons.dashboard_outlined), selectedIcon: Icon(Icons.dashboard), label: 'Create'),
           NavigationDestination(icon: Icon(Icons.image_outlined), selectedIcon: Icon(Icons.image), label: 'Image'),
-          NavigationDestination(icon: Icon(Icons.music_note_outlined), selectedIcon: Icon(Icons.music_note), label: 'Music'),
           NavigationDestination(icon: Icon(Icons.movie_outlined), selectedIcon: Icon(Icons.movie), label: 'Video'),
+          NavigationDestination(icon: Icon(Icons.music_note_outlined), selectedIcon: Icon(Icons.music_note), label: 'Music'),
           NavigationDestination(icon: Icon(Icons.history), selectedIcon: Icon(Icons.history_toggle_off), label: 'History'),
-          NavigationDestination(icon: Icon(Icons.dashboard_customize_outlined), selectedIcon: Icon(Icons.dashboard_customize), label: 'Templates'),
         ],
+      ),
+    );
+  }
+
+  Widget _buildCreateHome() {
+    final user = Supabase.instance.client.auth.currentUser;
+    return Container(
+      decoration: const BoxDecoration(gradient: LinearGradient(begin: Alignment.topLeft, end: Alignment.bottomRight, colors: [Color(0xFF02050D), Color(0xFF06152B), Color(0xFF02040A)])),
+      child: ListView(padding: const EdgeInsets.fromLTRB(18, 18, 18, 28), children: [
+        Container(
+          padding: const EdgeInsets.all(22),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(28),
+            gradient: const LinearGradient(begin: Alignment.topLeft, end: Alignment.bottomRight, colors: [Color(0xCC102744), Color(0xB3091428), Color(0xAA071020)]),
+            border: Border.all(color: const Color(0x6659B8FF)),
+            boxShadow: [BoxShadow(color: Color(0xFF087CFF).withValues(alpha: .14), blurRadius: 28)],
+          ),
+          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            const Row(children: [Icon(Icons.auto_awesome, color: Color(0xFF00EFFF), size: 24), SizedBox(width: 9), Text('NOVARYX-AI', style: TextStyle(fontSize: 13, letterSpacing: 2, fontWeight: FontWeight.w900, color: Color(0xFF9CDFFF)))]),
+            const SizedBox(height: 22),
+            const Text('Create anything.', style: TextStyle(fontSize: 30, height: 1.08, fontWeight: FontWeight.w900, color: Colors.white)),
+            const SizedBox(height: 9),
+            const Text('Your AI workspace for images, videos, and music.', style: TextStyle(color: Color(0xFF9DB4D6), height: 1.5)),
+            const SizedBox(height: 20),
+            Row(children: [
+              Expanded(child: OutlinedButton.icon(onPressed: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const TopUpScreen())), icon: const Icon(Icons.add_card_outlined), label: const Text('Add credits'))),
+              const SizedBox(width: 10),
+              Expanded(child: OutlinedButton.icon(onPressed: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const LoginScreen())), icon: const Icon(Icons.person_outline), label: const Text('Account'))),
+            ]),
+            if (user != null) ...[const SizedBox(height: 12), Text(user.email ?? 'Signed in', style: const TextStyle(color: Colors.white54, fontSize: 12))],
+          ]),
+        ),
+        const SizedBox(height: 24),
+        const Text('Your creative studio', style: TextStyle(fontSize: 20, fontWeight: FontWeight.w800)),
+        const SizedBox(height: 6),
+        const Text('Choose a tool to start a generation.', style: TextStyle(color: Colors.white60)),
+        const SizedBox(height: 14),
+        _createToolCard(icon: Icons.image_outlined, title: 'Image Studio', subtitle: 'Text-to-image and image-to-image', accent: const Color(0xFF26B9FF), onTap: () => setState(() => _selectedIndex = 1)),
+        const SizedBox(height: 12),
+        _createToolCard(icon: Icons.movie_outlined, title: 'Video Studio', subtitle: 'Create clips with model and ratio options', accent: const Color(0xFF8D8BFF), onTap: () => setState(() => _selectedIndex = 2)),
+        const SizedBox(height: 12),
+        _createToolCard(icon: Icons.music_note_outlined, title: 'Music Studio', subtitle: 'Generate music and audio', accent: const Color(0xFF4FE1C1), onTap: () => setState(() => _selectedIndex = 3)),
+        const SizedBox(height: 12),
+        _createToolCard(icon: Icons.history_rounded, title: 'Generation History', subtitle: 'Review saved generations and results', accent: const Color(0xFF68A6FF), onTap: () => setState(() => _selectedIndex = 4)),
+        const SizedBox(height: 18),
+        Container(padding: const EdgeInsets.all(15), decoration: BoxDecoration(color: const Color(0xB30A1730), borderRadius: BorderRadius.circular(18), border: Border.all(color: const Color(0x334DBEFF)),), child: const Row(crossAxisAlignment: CrossAxisAlignment.start, children: [Icon(Icons.tips_and_updates_outlined, color: Color(0xFF00EFFF)), SizedBox(width: 10), Expanded(child: Text('Generations are submitted to your connected provider. Open History to review saved results and task status.', style: TextStyle(color: Color(0xFFB4C8E8), height: 1.45)))])),
+      ]),
+    );
+  }
+
+  Widget _createToolCard({required IconData icon, required String title, required String subtitle, required Color accent, required VoidCallback onTap}) {
+    return Material(
+      color: const Color(0xB30A1730),
+      borderRadius: BorderRadius.circular(20),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(20),
+        child: Container(
+          padding: const EdgeInsets.all(17),
+          decoration: BoxDecoration(borderRadius: BorderRadius.circular(20), border: Border.all(color: accent.withValues(alpha: .28))),
+          child: Row(children: [
+            Container(width: 48, height: 48, decoration: BoxDecoration(color: accent.withValues(alpha: .12), borderRadius: BorderRadius.circular(15), border: Border.all(color: accent.withValues(alpha: .45))), child: Icon(icon, color: accent, size: 25)),
+            const SizedBox(width: 14),
+            Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text(title, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w800)), const SizedBox(height: 4), Text(subtitle, style: const TextStyle(fontSize: 12, color: Colors.white60))])),
+            const Icon(Icons.arrow_forward_ios_rounded, size: 16, color: Colors.white54),
+          ]),
+        ),
       ),
     );
   }
