@@ -10,6 +10,27 @@ Flutter Android app for AI chat (Groq), image/music/video generation (Kie.ai), S
 - Provider API secrets stay on the server in Supabase Edge Function secrets, not inside the APK.
 - GitHub Actions ARM64 release APK workflow.
 
+## Render API gateway
+
+The app loads its public Supabase project URL and publishable key from Render at startup, then sends chat, Kie.ai task creation/status checks, and credit-purchase requests through the Render API gateway. Supabase Auth, database queries, and Storage still use the Supabase Flutter SDK directly so signed-in sessions and user-owned data continue to work normally.
+
+The root `Dockerfile` runs `backend/server.js`. Configure the Render web service to use this repository's root `Dockerfile` and set these environment variables in the Render dashboard:
+
+| Render environment variable | Value |
+| --- | --- |
+| `SUPABASE_URL` | The active Supabase HTTPS Project URL |
+| `SUPABASE_PUBLISHABLE_KEY` | The project's public `sb_publishable_...` key (or the supported anon key) |
+
+Do not add Supabase service-role, Groq, Kie.ai, or Flutterwave secret keys to the `/api/config` response. The gateway only returns public client configuration. Provider secrets remain in Supabase Edge Function secrets, and the Render gateway forwards the signed-in user's bearer token to the existing `provider-gateway` function.
+
+Health check: `/health`
+
+Public configuration: `/api/config`
+
+Authenticated provider proxy: `POST /api/provider-gateway`
+
+After adding the Render environment variables, redeploy the Render service. Check `https://novaryx-ai.onrender.com/health` for status and `https://novaryx-ai.onrender.com/api/config` for the public configuration response. Do not share any secret values in screenshots or chat.
+
 ## Configure provider secrets in Supabase
 
 1. Open your project at https://supabase.com/dashboard.
