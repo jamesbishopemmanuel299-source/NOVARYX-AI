@@ -171,6 +171,27 @@ body:before{display:none}
 
 /* Remove chat interface; focus workspace on creative tools */
 #page-chat{display:none!important}
+
+/* Mobile header and navigation overflow fix */
+#topActions{display:flex;align-items:center;justify-content:flex-end;gap:8px;flex-wrap:wrap;min-width:0;max-width:100%}
+#topActions .pill,#topActions button{max-width:100%;min-width:0;overflow-wrap:anywhere;white-space:normal}
+@media(max-width:760px){
+ .wrap{width:calc(100% - 24px)}
+ .top{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;padding:16px 0}
+ .brand{min-width:0;max-width:100%;letter-spacing:.04em;gap:9px}
+ #topActions{width:100%;display:flex;justify-content:flex-start;align-items:stretch;gap:8px}
+ #topActions .pill,#topActions button{flex:0 1 auto;width:auto;min-height:40px;padding:9px 12px;border-radius:14px;font-size:13px;overflow-wrap:anywhere}
+ .app{display:block;padding:16px 0 35px;min-width:0}
+ .side{display:flex;flex-wrap:nowrap;overflow-x:auto;max-width:100%;gap:4px;position:static;margin-bottom:16px}
+ .side .nav{flex:0 0 auto;white-space:nowrap}
+ .main,.grid,.panel,.welcome{min-width:0;max-width:100%}
+ .welcome{display:flex;flex-direction:column;align-items:stretch;gap:14px;padding:18px 0 22px}
+ .welcome .statrow{display:flex;flex-wrap:wrap;max-width:100%;gap:8px}
+ .welcome .stat{flex:0 1 auto;max-width:100%;white-space:normal;overflow-wrap:anywhere}
+ .chatrow{flex-wrap:wrap}
+ .chatrow textarea{min-width:0;width:100%;flex-basis:100%}
+}
+
 </style></head>
 <body><div class="wrap">
 <header class="top"><div class="brand"><div class="logo">N</div><div>NOVARYX<span class="gradient">-AI</span><div class="tag">YOUR AI. YOUR CREATIVITY. YOUR DESTINY.</div></div></div><div id="topActions"><span class="pill">AI workspace</span></div></header>
