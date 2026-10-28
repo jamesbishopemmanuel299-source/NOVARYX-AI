@@ -419,51 +419,103 @@ class _LoginScreenState extends State<LoginScreen> {
   Future<void> _authenticate() async {
     final email = _emailController.text.trim();
     final password = _passwordController.text;
-    if (email.isEmpty || password.isEmpty) {
+
+    if (email.isEmpty || !email.contains('@') || email.endsWith('@')) {
       setState(() {
         _errorType = 'InputValidation';
-        _exactError = 'Enter both your email address and password.';
+        _exactError = 'Enter a valid email address.';
       });
       return;
     }
+    if (password.isEmpty || (_creatingAccount && password.length < 6)) {
+      setState(() {
+        _errorType = 'InputValidation';
+        _exactError = _creatingAccount
+            ? 'Choose a password with at least 6 characters.'
+            : 'Enter your password.';
+      });
+      return;
+    }
+
     setState(() { _busy = true; _exactError = null; _errorType = null; });
     try {
-      // Wait for direct Supabase initialization before attempting authentication.
-      await _supabaseInitialization?.timeout(const Duration(seconds: 30));
+      // Do not send auth requests until the configured Supabase client is ready.
+      await (_supabaseInitialization ?? Future<void>.value())
+          .timeout(const Duration(seconds: 30));
       if (!Supabase.instance.isInitialized) {
         throw StateError(_supabaseStartupError ??
-            'Supabase initialization has not completed. Verify the Supabase Project URL and public anon/publishable key.');
+            'Supabase could not initialize. Check the project URL and publishable key in the app build configuration.');
       }
+
+      final auth = Supabase.instance.client.auth;
       if (_creatingAccount) {
-        await Supabase.instance.client.auth.signUp(email: email, password: password)
-            .timeout(const Duration(seconds: 30));
+        final response = await auth.signUp(
+          email: email,
+          password: password,
+        ).timeout(const Duration(seconds: 30));
+
+        if (response.user == null) {
+          throw const AuthException(
+            'Supabase did not return an account. Check your project Auth settings and try again.',
+          );
+        }
+        if (response.session == null && mounted) {
+          setState(() {
+            _errorType = 'EmailConfirmationRequired';
+            _exactError = 'Your account was created. Check $email for the confirmation link, then return here and sign in. If no email arrives, check Supabase Auth email settings.';
+          });
+          return;
+        }
       } else {
-        await Supabase.instance.client.auth.signInWithPassword(email: email, password: password)
-            .timeout(const Duration(seconds: 30));
+        final response = await auth.signInWithPassword(
+          email: email,
+          password: password,
+        ).timeout(const Duration(seconds: 30));
+        if (response.session == null) {
+          throw const AuthException(
+            'Sign-in did not create an active session. Try again or reset your password.',
+          );
+        }
       }
+
       if (!mounted) return;
-      if (Supabase.instance.client.auth.currentSession != null) {
+      final session = auth.currentSession;
+      if (session != null) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Signed in successfully.')),
+          SnackBar(content: Text(_creatingAccount
+              ? 'Account created successfully.'
+              : 'Signed in successfully.')),
         );
         Navigator.of(context).pushReplacement(
           MaterialPageRoute<void>(builder: (_) => const HomeScreen()),
         );
-      } else if (_creatingAccount) {
-        setState(() {
-          _errorType = 'EmailConfirmationRequired';
-          _exactError = 'Account creation returned no active session. Check your email for a confirmation link if email confirmation is enabled in Supabase.';
-        });
       }
+    } on AuthException catch (error) {
+      if (!mounted) return;
+      final message = error.message.toLowerCase();
+      String friendly;
+      if (message.contains('invalid login credentials')) {
+        friendly = 'Email or password is incorrect. If you are new, switch to Create account.';
+      } else if (message.contains('already registered') ||
+          message.contains('user already registered')) {
+        friendly = 'An account with this email already exists. Switch to Sign in or use Forgot password.';
+      } else if (message.contains('password') && message.contains('characters')) {
+        friendly = 'Password is too short. Use at least 6 characters.';
+      } else if (message.contains('email not confirmed')) {
+        friendly = 'Confirm your email using the link sent by Supabase, then sign in.';
+      } else {
+        friendly = error.message;
+      }
+      setState(() {
+        _errorType = 'SupabaseAuthException';
+        _exactError = friendly;
+      });
     } catch (error, stackTrace) {
-      debugPrint('NOVARYX-AI login error type: ${error.runtimeType}');
-      debugPrint('NOVARYX-AI login exact error: $error');
+      debugPrint('NOVARYX-AI auth error type: ${error.runtimeType}');
+      debugPrint('NOVARYX-AI auth exact error: $error');
       debugPrintStack(stackTrace: stackTrace);
       if (!mounted) return;
 
-      // Give DNS/host-lookup failures a useful explanation without hiding the
-      // original exception. Retrying credentials cannot fix a hostname that
-      // the device cannot resolve.
       final rawError = error.toString();
       final lowerError = rawError.toLowerCase();
       final isHostLookupFailure =
@@ -473,7 +525,7 @@ class _LoginScreenState extends State<LoginScreen> {
       setState(() {
         _errorType = error.runtimeType.toString();
         _exactError = isHostLookupFailure
-            ? '$rawError\n\nConnection diagnosis: the device could not resolve the configured hostname. Verify that the Supabase Project URL is the exact active URL from Supabase Dashboard → Project Settings → API, and check the device internet/DNS connection. This is a network/hostname error, not an email or password error.'
+            ? 'The phone could not reach the Supabase hostname. The app is configured for ${defaultSupabaseUrl}. Rebuild and install the latest APK after checking that this is the active Project URL in Supabase Dashboard → Project Settings → API. Also test internet/DNS. This is not an email or password error.\n\nDetails: $rawError'
             : rawError;
       });
     } finally {
