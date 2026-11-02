@@ -18,10 +18,12 @@ Website capabilities:
 - Flutterwave credit-package checkout and server-side payment verification.
 - Responsive mobile and desktop layout.
 
-Generation costs enforced by the Edge Function:
-- Image: 3 credits
-- Music: 5 credits
-- Video: 8 credits
+Generation billing:
+- Every new account starts with 50 NOVARYX credits. Existing balances are preserved; missing balances are initialized to 50.
+- Image, video, and music tasks are charged only after KIE reports a successful task and its `creditsConsumed` amount.
+- The NOVARYX debit is the exact integer KIE reports for that task; fixed per-kind estimates are not used.
+- Failed KIE tasks are not charged. Task billing is idempotent so repeated status polls cannot deduct twice.
+- If a completed task costs more than the user's remaining NOVARYX balance, the balance can become negative; new generations are blocked until a top-up covers the shortfall.
 
 New accounts receive 50 starter credits when the generation-credit migration is installed. Credit balances are read from Supabase; they are not stored as a browser-only balance.
 
@@ -48,7 +50,8 @@ Authenticated provider proxy: `POST /api/provider-gateway`
 
 Apply the repository SQL migrations in timestamp order from the Supabase SQL Editor. The website relies on:
 - `20261022000000_generation_history.sql` — per-user generation history.
-- `20261022010000_generation_credits.sql` — starter credits and atomic credit deduction.
+- `20261022010000_generation_credits.sql` — 50 starter credits and atomic credit deduction.
+- `20261102000000_kie_exact_credit_billing.sql` — task-level billing using KIE's reported `creditsConsumed` value; each user is initialized to 50 credits if they do not already have a balance.
 - `20261022030000_credit_purchases.sql` — credit purchase records and fulfilment.
 - `20261022040000_novaryx_full_supabase_storage.sql` — private `user-assets` storage bucket and ownership policies.
 
