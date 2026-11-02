@@ -46,6 +46,14 @@ serve(async (req) => {
   const unlimitedCredits = (userData.user.email ?? "").toLowerCase() === "jamesbishopemmanuel@gmail.com";
   try {
 
+    if (action === "provider-status") {
+      return reply({
+        kie: Boolean(Deno.env.get("KIE_API_KEY")),
+        flutterwave: Boolean(Deno.env.get("FLUTTERWAVE_SECRET_KEY") && Deno.env.get("FLUTTERWAVE_REDIRECT_URL")),
+        supabase: Boolean(supabaseUrl && anonKey && serviceRoleKey),
+      });
+    }
+
     if (action === "credit-purchase-initialize") {
       const email = String(input.email ?? "").trim();
       const credits = Number(input.credits);
