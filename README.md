@@ -1,142 +1,90 @@
-# NOVARYX-AI
+# NOVARYX AI
 
-Flutter Android app for AI chat (Groq), image/music/video generation (Kie.ai), Supabase authentication, and a server-side Flutterwave payment gateway.
+NOVARYX AI is an AI creative studio with a responsive website and an Android app. The website provides separate image, video, and music generation workspaces, Supabase authentication, user credits, cloud history, and background task tracking while the browser session remains active.
 
-## Features
-- Groq chat requests routed through a Supabase Edge Function.
-- Kie.ai image, music, and video task creation/status polling routed through the same Edge Function.
-- Flutterwave payment initialization and transaction verification endpoints in the Edge Function.
-- Supabase email/password authentication.
-- Provider API secrets stay on the server in Supabase Edge Function secrets, not inside the APK.
-- GitHub Actions ARM64 release APK workflow.
+## Website
 
-## Render API gateway
+The Render service serves the website from `backend/public/index.html`. The root `Dockerfile` starts `backend/server.js`.
 
-The app loads its public Supabase project URL and publishable key from Render at startup, then sends chat, Kie.ai task creation/status checks, and credit-purchase requests through the Render API gateway. Supabase Auth, database queries, and Storage still use the Supabase Flutter SDK directly so signed-in sessions and user-owned data continue to work normally.
+Website capabilities:
+- Supabase email/password registration and login.
+- Image generation with text-to-image and image-to-image modes.
+- Video generation with text-to-video, image-to-video, and video-to-video modes.
+- Music generation with a selectable prompt style and Kie model ID.
+- Custom model ID entry where a Kie model is enabled on the account.
+- Supabase-backed credit balance and user-owned generation history.
+- Background task polling while the website remains open, including while navigating between studios.
+- Private Supabase Storage uploads and short-lived signed URLs for image/video source inputs.
+- Flutterwave credit-package checkout and server-side payment verification.
+- Responsive mobile and desktop layout.
 
-The root `Dockerfile` runs `backend/server.js`. Configure the Render web service to use this repository's root `Dockerfile` and set these environment variables in the Render dashboard:
+Generation costs enforced by the Edge Function:
+- Image: 3 credits
+- Music: 5 credits
+- Video: 8 credits
 
-| Render environment variable | Value |
+New accounts receive 50 starter credits when the generation-credit migration is installed. Credit balances are read from Supabase; they are not stored as a browser-only balance.
+
+## Render configuration
+
+The Render web service should use the repository root Dockerfile. Set these environment variables in the Render dashboard:
+
+| Name | Value |
 | --- | --- |
-| `SUPABASE_URL` | The active Supabase HTTPS Project URL |
-| `SUPABASE_PUBLISHABLE_KEY` | The project's public `sb_publishable_...` key (or the supported anon key) |
+| `SUPABASE_URL` | Your Supabase project HTTPS URL |
+| `SUPABASE_PUBLISHABLE_KEY` | Your Supabase publishable key (or supported anon key) |
 
-Do not add Supabase service-role, Groq, Kie.ai, or Flutterwave secret keys to the `/api/config` response. The gateway only returns public client configuration. Provider secrets remain in Supabase Edge Function secrets, and the Render gateway forwards the signed-in user's bearer token to the existing `provider-gateway` function.
+The website reads public Supabase configuration from `/api/config`. Do not expose Supabase service-role, Kie.ai, Groq, or Flutterwave secret keys to the browser.
 
-Health check: `/health`
+When the GitHub repository is connected to Render with automatic deploys enabled, commits to `main` should trigger a deployment. Check the Render dashboard for the actual deploy result; a GitHub commit alone does not prove that Render has finished deploying.
 
-Public configuration: `/api/config`
+Health endpoint: `/health`
+
+Public configuration endpoint: `/api/config`
 
 Authenticated provider proxy: `POST /api/provider-gateway`
 
-After adding the Render environment variables, redeploy the Render service. Check `https://novaryx-ai.onrender.com/health` for status and `https://novaryx-ai.onrender.com/api/config` for the public configuration response. Do not share any secret values in screenshots or chat.
+## Supabase setup
 
-## Configure provider secrets in Supabase
+Apply the repository SQL migrations in timestamp order from the Supabase SQL Editor. The website relies on:
+- `20261022000000_generation_history.sql` — per-user generation history.
+- `20261022010000_generation_credits.sql` — starter credits and atomic credit deduction.
+- `20261022030000_credit_purchases.sql` — credit purchase records and fulfilment.
+- `20261022040000_novaryx_full_supabase_storage.sql` — private `user-assets` storage bucket and ownership policies.
 
-1. Open your project at https://supabase.com/dashboard.
-2. Select **Edge Functions** → **Secrets** (or **Project Settings → Edge Functions → Secrets**, depending on dashboard layout).
-3. Add these secrets with the exact names below. Enter each real key privately in the Supabase dashboard; do not put the values in GitHub source files or this README.
+The private `user-assets` bucket is used for source media uploads. The website requests a signed URL before passing a source file to the provider. Upload limits in the website are 35 MB; the actual bucket policy and allowed MIME types also apply.
 
-| Secret name | Value |
+## Provider Edge Function
+
+Deploy `supabase/functions/provider-gateway` as the Supabase Edge Function named `provider-gateway`. Configure these secrets in Supabase Edge Function secrets:
+
+| Secret name | Purpose |
 | --- | --- |
-| `GROQ_API_KEY` | Your Groq API key |
-| `KIE_API_KEY` | Your Kie.ai API key |
-| `FLUTTERWAVE_SECRET_KEY` | Your Flutterwave secret key |
+| `KIE_API_KEY` | Image, video, and music task creation and polling |
+| `FLUTTERWAVE_SECRET_KEY` | Secure payment initialization and verification |
+| `FLUTTERWAVE_REDIRECT_URL` | HTTPS page URL used for payment return |
+| `SUPABASE_SERVICE_ROLE_KEY` | Server-side purchase fulfilment and administrative database operations |
 
-The function uses Supabase's built-in `SUPABASE_URL` and `SUPABASE_ANON_KEY` environment values. Do not use a Supabase service-role key in the Flutter app.
+The function also uses Supabase's built-in `SUPABASE_URL` and `SUPABASE_ANON_KEY`. Never put service-role or provider secret values in GitHub source, Render public configuration, or client-side code.
 
-## Deploy the Edge Function
-
-Install and sign in to the Supabase CLI, then run these commands from the repository root:
+After changing the Edge Function source, redeploy it from the Supabase CLI:
 
 ```bash
 supabase login
-supabase link --project-ref vihbsfrwnslnmheowkhy
+supabase link --project-ref YOUR_PROJECT_REF
 supabase functions deploy provider-gateway
 ```
 
-The function requires a valid signed-in Supabase user. In the app, create an account or sign in from **Settings** before using chat or generation. The function checks the user's session and reads provider secrets server-side.
+Kie.ai model identifiers and input schemas vary by model and account. The website includes common example model IDs and a custom model field; select a model actually enabled for your Kie.ai account. A task can only run if the configured provider accepts that model and its input fields.
 
-## Flutterwave actions
+## Android app
 
-The deployed `provider-gateway` function supports:
-- `flutterwave-initialize`: expects `email`, `amount`, and `redirect_url`; optional `name`, `currency`, and `tx_ref`.
-- `flutterwave-verify`: expects `transaction_id`.
+The Flutter Android app remains in `lib/`. The GitHub Actions workflow at `.github/workflows/build-apk.yml` builds the Android release APK. The website changes do not replace the Android application source.
 
-These are secure server-side endpoints; a Flutterwave checkout/payment screen has not yet been added to the app UI. Always verify a transaction on the server before granting credits, subscriptions, or access.
+## Security
 
-## Build an APK
-
-1. Add `SUPABASE_URL` and `SUPABASE_PUBLISHABLE_KEY` as GitHub Actions repository secrets if you want the build to use your project values.
-2. Open **Actions** → **Build Small Android APK** and run the workflow, or push a commit to `main`.
-3. Download the `novaryx-arm64-release-apk` artifact from a successful run.
-
-For local development with Flutter installed:
-
-```bash
-flutter pub get
-flutter run
-```
-
-## Security notes
-- Never expose Groq, Kie.ai, or Flutterwave secret keys in Flutter source, GitHub commits, or the built APK.
-- Supabase Edge Function secrets are server-side configuration; the app does not download or reveal them.
-- Keep Row Level Security (RLS) enabled on any tables containing user data.
-- Add usage limits/rate limits before publicly releasing provider-backed AI features.
-- The current Flutterwave endpoints provide payment initialization and verification, but do not by themselves add a payment UI or automatic crediting.
-
-## Current limitations
-- Kie.ai model IDs and input fields vary. The app sends a common prompt-based task input; some models may require additional fields.
-- Results depend on the provider returning a task ID and result URL in its response.
-
-
-## Generation history
-
-The app records successful Groq chat exchanges and completed Kie.ai image, music, and video generations in the signed-in user's Supabase account. The **History** tab shows the latest 100 items and allows users to delete individual records. Row Level Security restricts records to their owner.
-
-Before using History, apply `supabase/migrations/20261022000000_generation_history.sql` to the Supabase project:
-1. Open the [Supabase SQL Editor](https://supabase.com/dashboard/project/vihbsfrwnslnmheowkhy/sql/new).
-2. Paste the migration SQL from the repository and run it.
-3. Sign in to NOVARYX-AI, then open **History**. Pull down to refresh.
-
-Only text responses and provider result URLs are stored; the generated media itself remains hosted by the provider. History is not available until the database migration has been applied.
-
-
-## Generation credits
-
-New accounts receive **50 starter credits** after the generation-credits migration is applied. Each signed-in AI request is charged by the server:
-- Groq chat: 1 credit per request
-- Kie.ai image: 3 credits
-- Kie.ai music: 5 credits
-- Kie.ai video: 8 credits
-
-Credits are stored per user in Supabase. The provider gateway deducts them using an atomic database function so concurrent requests cannot spend the same balance twice. The balance badge in the app bar can be tapped to refresh. These are starter credits only; paid top-ups are not implemented yet.
-
-Apply `supabase/migrations/20261022010000_generation_credits.sql` in the [Supabase SQL Editor](https://supabase.com/dashboard/project/vihbsfrwnslnmheowkhy/sql/new), then redeploy the `provider-gateway` Edge Function so credit checks are active. Existing accounts are initialized with 50 credits if they do not already have a credit row. Do not treat the displayed balance as proof of payment.
-
-
-## Generation style presets
-
-The Flutter generation screens include selectable prompt-style presets for all three media types:
-- **Images:** cinematic, photorealistic, anime, 3D animation, fantasy, cyberpunk, watercolor, oil painting, pixel art, comic book, minimalist, product photography, portrait, architecture, and logo concepts.
-- **Music:** Afrobeats, Afro-piano, pop, hip-hop, R&B/soul, Amapiano, gospel, EDM/dance, jazz, lo-fi, cinematic score, rock, reggae, classical, ambient, and acoustic.
-- **Video:** cinematic, photorealistic, anime, 3D animation, fantasy, cyberpunk, documentary, music video, anime action, product ad, nature, stop motion, vintage film, sci-fi, horror, and travel.
-
-A selected style is included in the prompt sent to Kie.ai. Actual results depend on the selected Kie.ai model and its supported capabilities; these presets guide the prompt and do not automatically add new provider models or guarantee every style on every model.
-
-
-## Image and video generation modes
-
-The image screen supports **Text to image** and **Image to image**. The video screen supports **Text to video** and **Image to video**. For image-based modes, enter a publicly accessible reference image URL; the app sends it to the provider gateway as `image_url`. The selected Kie.ai model must support that input field and the chosen aspect ratio. Model input schemas differ, so verify the configured model's documented input names before using image-based generation.
-
-
-### Video-to-video mode
-
-The video generation screen now offers **Video to video**. Enter a publicly accessible source video URL and describe the transformation you want. The app forwards the source as `video_url` to the Kie.ai task input. This requires a configured Kie.ai video model that supports video input and that exact field name; supported formats, duration, and other limits depend on the model.
-
-
-## Community templates
-
-The Templates tab lists community-shared image, video, and music generation prompts. After generating media, choose **Post as template**, add a title and optional description, and publish it. Other signed-in users can choose **Use template** to open the matching generator with the prompt, style, and mode prefilled, then edit the prompt before generating. The template stores the result URL as a reference and does not copy or host the media file itself.
-
-Before using the feature, apply `supabase/migrations/20261022020000_community_templates.sql` in the Supabase SQL Editor. Users must be signed in to browse or post templates. Only post media and prompts you have the rights to share.
+- Keep Row Level Security enabled on all user-owned tables.
+- Provider API secrets must remain in Supabase Edge Function secrets.
+- Credit deductions and payment verification are server-side.
+- Do not grant credits based on a browser redirect alone; verify the transaction with Flutterwave on the server.
+- Add provider rate limits and operational monitoring before opening the service to a large public audience.
