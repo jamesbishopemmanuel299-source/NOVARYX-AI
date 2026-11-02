@@ -43,7 +43,6 @@ serve(async (req) => {
   }
 
   const action = String(input.action ?? "");
-  const unlimitedCredits = (userData.user.email ?? "").toLowerCase() === "jamesbishopemmanuel@gmail.com";
   try {
 
     if (action === "provider-status") {
@@ -112,10 +111,8 @@ serve(async (req) => {
       if (!key) return reply({ error: "GROQ_API_KEY is not configured in Supabase Edge Function secrets." }, 500);
       const messages = input.messages;
       if (!Array.isArray(messages) || messages.length === 0) return reply({ error: "messages must be a non-empty array." }, 400);
-      if (!unlimitedCredits) {
-        const { error: creditError } = await supabase.rpc("spend_generation_credits", { p_amount: 1 });
-        if (creditError) return reply({ error: creditError.message.includes("Not enough") ? "Not enough generation credits. Check your balance or purchase more credits." : creditError.message }, 402);
-      }
+      const { error: creditError } = await supabase.rpc("spend_generation_credits", { p_amount: 1 });
+      if (creditError) return reply({ error: creditError.message.includes("Not enough") ? "Not enough generation credits. Check your balance or purchase more credits." : creditError.message }, 402);
       const upstream = await fetch("https://api.groq.com/openai/v1/chat/completions", {
         method: "POST",
         headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json" },
@@ -135,19 +132,27 @@ serve(async (req) => {
       const prompt = String(input.prompt ?? "").trim();
       if (!model || !prompt) return reply({ error: "model and prompt are required." }, 400);
       const generationKind = String(input.generationKind ?? "");
-      const costs: Record<string, number> = { image: 3, music: 5, video: 8 };
-      const cost = costs[generationKind];
-      if (!cost) return reply({ error: "generationKind must be image, music, or video." }, 400);
-      if (!unlimitedCredits) {
-        const { error: creditError } = await supabase.rpc("spend_generation_credits", { p_amount: cost });
-        if (creditError) return reply({ error: creditError.message.includes("Not enough") ? "Not enough generation credits. Check your balance or purchase more credits." : creditError.message }, 402);
-      }
+      if (!["image", "music", "video"].includes(generationKind)) return reply({ error: "generationKind must be image, music, or video." }, 400);
+      const { data: creditRow, error: balanceError } = await admin.from("generation_credits").select("balance").eq("user_id", userData.user.id).maybeSingle();
+      if (balanceError) return reply({ error: "Could not check your credit balance: " + balanceError.message }, 500);
+      if (!creditRow || Number(creditRow.balance) <= 0) return reply({ error: "You need available credits before starting a generation. Top up your balance to continue." }, 402);
+
       const upstream = await fetch("https://api.kie.ai/api/v1/jobs/createTask", {
         method: "POST",
         headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json" },
         body: JSON.stringify({ model, input: { prompt, ...(generationKind !== "music" && typeof input.aspectRatio === "string" ? { aspect_ratio: input.aspectRatio } : {}), ...(generationKind !== "music" && typeof input.imageUrl === "string" && input.imageUrl.trim() ? { image_url: input.imageUrl.trim() } : {}), ...(generationKind === "video" && typeof input.videoUrl === "string" && input.videoUrl.trim() ? { video_url: input.videoUrl.trim() } : {}) } }),
       });
-      return reply(await upstream.json(), upstream.status);
+      const result = await upstream.json();
+      if (!upstream.ok || (result?.code !== undefined && Number(result.code) !== 200)) {
+        return reply({ error: result?.msg || result?.message || "KIE could not accept this generation task.", provider: result }, upstream.status || 502);
+      }
+      const taskId = String(result?.data?.taskId ?? result?.data?.task_id ?? result?.taskId ?? "");
+      if (!taskId) return reply({ error: "KIE did not return a task ID, so no credits were deducted.", provider: result }, 502);
+      const { error: billingInsertError } = await admin.from("kie_task_billing").insert({
+        task_id: taskId, user_id: userData.user.id, generation_kind: generationKind, model, status: "pending"
+      });
+      if (billingInsertError) return reply({ error: "KIE accepted the task but its billing record could not be saved. Contact support with task ID " + taskId }, 500);
+      return reply(result, upstream.status);
     }
 
     if (action === "kie-poll") {
@@ -155,10 +160,33 @@ serve(async (req) => {
       if (!key) return reply({ error: "KIE_API_KEY is not configured in Supabase Edge Function secrets." }, 500);
       const taskId = String(input.taskId ?? "");
       if (!taskId) return reply({ error: "taskId is required." }, 400);
+      const { data: billingRow, error: billingLookupError } = await admin.from("kie_task_billing").select("task_id,user_id,status,credits_consumed").eq("task_id", taskId).eq("user_id", userData.user.id).maybeSingle();
+      if (billingLookupError) return reply({ error: "Could not verify task ownership: " + billingLookupError.message }, 500);
+      if (!billingRow) return reply({ error: "This generation task does not belong to your account." }, 404);
       const upstream = await fetch(`https://api.kie.ai/api/v1/jobs/recordInfo?taskId=${encodeURIComponent(taskId)}`, {
         headers: { Authorization: `Bearer ${key}` },
       });
-      return reply(await upstream.json(), upstream.status);
+      const result = await upstream.json();
+      if (!upstream.ok || (result?.code !== undefined && Number(result.code) !== 200)) return reply(result, upstream.status);
+      const task = result?.data ?? result;
+      const state = String(task?.state ?? task?.status ?? "").toLowerCase();
+      if (["fail", "failed", "error", "cancelled", "canceled"].includes(state)) {
+        if (billingRow.status === "pending") await admin.from("kie_task_billing").update({ status: "failed" }).eq("task_id", taskId).eq("user_id", userData.user.id).eq("status", "pending");
+        return reply({ ...result, billing: { status: "failed", credits_consumed: 0, message: "KIE failed this task; no generation credits were charged." } }, upstream.status);
+      }
+      if (["success", "completed", "succeed"].includes(state) && billingRow.status !== "settled") {
+        const consumed = Number(task?.creditsConsumed ?? task?.credits_consumed);
+        if (!Number.isSafeInteger(consumed) || consumed < 0) {
+          return reply({ ...result, billing: { status: "pending", message: "Waiting for KIE to report the exact creditsConsumed value." } }, upstream.status);
+        }
+        const { data: settlement, error: settlementError } = await admin.rpc("settle_kie_task_credits", { p_task_id: taskId, p_credits: consumed });
+        if (settlementError) return reply({ error: "Generation succeeded, but exact credit settlement failed. Contact support with task ID " + taskId, detail: settlementError.message }, 500);
+        return reply({ ...result, billing: { status: "settled", ...settlement } }, upstream.status);
+      }
+      if (billingRow.status === "settled") {
+        return reply({ ...result, billing: { status: "settled", credits_consumed: billingRow.credits_consumed } }, upstream.status);
+      }
+      return reply({ ...result, billing: { status: "pending", message: "No credits are charged until KIE reports a successful task and its exact cost." } }, upstream.status);
     }
 
     if (action === "flutterwave-initialize") {
