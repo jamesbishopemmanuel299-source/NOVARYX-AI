@@ -34,7 +34,7 @@ The Render web service should use the repository root Dockerfile. Set these envi
 | `SUPABASE_URL` | Your Supabase project HTTPS URL |
 | `SUPABASE_PUBLISHABLE_KEY` | Your Supabase publishable key (or supported anon key) |
 
-The website reads public Supabase configuration from `/api/config`. Do not expose Supabase service-role, Kie.ai, Groq, or Flutterwave secret keys to the browser.
+The website reads public Supabase configuration from `/api/config`. Kie.ai and Flutterwave secret keys are read only by the Supabase `provider-gateway` Edge Function using `Deno.env.get(...)`. The website calls that function through the authenticated server proxy. Do not expose Supabase service-role, Kie.ai, Groq, or Flutterwave secret keys to the browser.
 
 When the GitHub repository is connected to Render with automatic deploys enabled, commits to `main` should trigger a deployment. Check the Render dashboard for the actual deploy result; a GitHub commit alone does not prove that Render has finished deploying.
 
@@ -65,7 +65,7 @@ Deploy `supabase/functions/provider-gateway` as the Supabase Edge Function named
 | `FLUTTERWAVE_REDIRECT_URL` | HTTPS page URL used for payment return |
 | `SUPABASE_SERVICE_ROLE_KEY` | Server-side purchase fulfilment and administrative database operations |
 
-The function also uses Supabase's built-in `SUPABASE_URL` and `SUPABASE_ANON_KEY`. Never put service-role or provider secret values in GitHub source, Render public configuration, or client-side code.
+The function also uses Supabase's built-in `SUPABASE_URL` and `SUPABASE_ANON_KEY`. The Account page includes a provider-connection check that reports whether the Kie.ai, Flutterwave and Supabase secrets are present; it returns only true/false status and never exposes secret values. Never put service-role or provider secret values in GitHub source, Render public configuration, or client-side code.
 
 After changing the Edge Function source, redeploy it from the Supabase CLI:
 
