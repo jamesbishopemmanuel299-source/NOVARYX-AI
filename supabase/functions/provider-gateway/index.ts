@@ -75,7 +75,7 @@ serve(async (req) => {
     if (action === "credit-purchase-verify") {
       const txRef = String(input.tx_ref ?? "");
       const transactionId = String(input.transaction_id ?? "");
-      if (!txRef || !/^\\d+$/.test(transactionId)) return reply({ error: "Purchase reference and numeric Flutterwave transaction ID are required." }, 400);
+      if (!txRef || !/^\d+$/.test(transactionId)) return reply({ error: "Purchase reference and numeric Flutterwave transaction ID are required." }, 400);
       const { data: purchase, error: purchaseError } = await admin.from("credit_purchases").select("*").eq("tx_ref", txRef).eq("user_id", userData.user.id).maybeSingle();
       if (purchaseError || !purchase) return reply({ error: "Purchase not found for this account." }, 404);
       if (purchase.status === "fulfilled") {
