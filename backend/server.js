@@ -131,6 +131,20 @@ body:before{content:"";display:block!important;position:fixed;inset:-20%;z-index
 #novaryx-create-options button,.novaryx-mode-chip{background:linear-gradient(120deg,rgba(0,119,255,.2),rgba(34,211,238,.11))!important;border-color:rgba(56,189,248,.3)!important;color:#effaff!important}#novaryx-create-options .novaryx-mode-chip{background:linear-gradient(110deg,#075be6,#0891b2)!important;color:#fff!important}
 #novaryx-more-pop select{background:#061a33!important;color:#fff!important;border-color:#1677ff!important}
 .navcard:hover{border-color:rgba(34,211,238,.5)!important;box-shadow:0 0 30px rgba(0,119,255,.13)!important}
+
+/* Premium NOVARYX surface overrides (loaded after legacy theme rules) */
+.topbar{background:rgba(5,12,26,.82)!important;border-bottom:1px solid rgba(120,175,255,.17)!important;box-shadow:0 14px 45px rgba(0,0,0,.25)!important;backdrop-filter:blur(32px) saturate(160%)!important}
+.sidebar{background:linear-gradient(180deg,rgba(7,19,39,.95),rgba(4,10,24,.92))!important;border-right:1px solid rgba(120,175,255,.16)!important}
+.nav.active,.nav:hover{background:linear-gradient(110deg,rgba(36,113,255,.25),rgba(29,201,220,.11))!important;border-color:rgba(80,165,255,.3)!important;box-shadow:inset 0 1px rgba(255,255,255,.07),0 8px 22px rgba(0,80,200,.1)!important}
+.panel{background:linear-gradient(145deg,rgba(18,38,68,.82),rgba(8,18,35,.94) 58%,rgba(7,27,43,.86))!important;border:1px solid rgba(124,178,255,.2)!important;border-radius:24px!important;box-shadow:inset 0 1px rgba(255,255,255,.08),0 22px 60px rgba(0,0,0,.3)!important}
+.btn{background:linear-gradient(120deg,#2678f4,#10b9ca)!important;border:1px solid rgba(135,206,255,.42)!important;border-radius:14px!important;box-shadow:0 8px 25px rgba(22,119,245,.24),inset 0 1px rgba(255,255,255,.24)!important}
+.btn.ghost{background:rgba(16,36,63,.86)!important;border-color:rgba(126,177,238,.24)!important;box-shadow:inset 0 1px rgba(255,255,255,.06)!important}
+.field input,.field select,.field textarea{background:rgba(3,12,27,.76)!important;border:1px solid rgba(124,178,255,.23)!important;border-radius:14px!important}
+#providerConnections{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;margin-top:14px}
+.provider-state{padding:15px;border:1px solid rgba(124,178,255,.2);border-radius:16px;background:rgba(4,16,33,.68)}
+.provider-state b{display:flex;align-items:center;gap:8px;font-size:13px}.provider-state small{display:block;color:#91a6c2;margin-top:7px;font-size:11px}
+.provider-dot{width:8px;height:8px;border-radius:50%;background:#e2a84c;box-shadow:0 0 12px currentColor}.provider-dot.ready{background:#35d39a;color:#35d39a}.provider-dot.missing{background:#f0a64a;color:#f0a64a}
+@media(max-width:560px){#providerConnections{grid-template-columns:1fr}}
 @media(prefers-reduced-motion:reduce){body:before{animation:none!important}}
 </style>
 <script id="novaryx-chat-default">
