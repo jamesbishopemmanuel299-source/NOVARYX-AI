@@ -115,7 +115,7 @@ serve(async (req) => {
     if (action === "credit-purchase-verify") {
       const txRef = String(input.tx_ref ?? "");
       const transactionId = String(input.transaction_id ?? "");
-      if (!txRef || !/^\\d+$/.test(transactionId)) return reply({ error: "Purchase reference and numeric Flutterwave transaction ID are required." }, 400);
+      if (!txRef || !/^\d+$/.test(transactionId)) return reply({ error: "Purchase reference and numeric Flutterwave transaction ID are required." }, 400);
       const { data: purchase, error: purchaseError } = await admin.from("credit_purchases").select("*").eq("tx_ref", txRef).eq("user_id", userData.user.id).maybeSingle();
       if (purchaseError || !purchase) return reply({ error: "Purchase not found for this account.", detail: purchaseError?.message ?? null, tx_ref: txRef }, 404);
       if (purchase.status === "fulfilled") {
@@ -241,7 +241,7 @@ serve(async (req) => {
       const key = Deno.env.get("FLUTTERWAVE_SECRET_KEY");
       if (!key) return reply({ error: "FLUTTERWAVE_SECRET_KEY is not configured in Supabase Edge Function secrets." }, 500);
       const transactionId = String(input.transaction_id ?? "");
-      if (!/^\\d+$/.test(transactionId)) return reply({ error: "A numeric transaction_id is required." }, 400);
+      if (!/^\d+$/.test(transactionId)) return reply({ error: "A numeric transaction_id is required." }, 400);
       const upstream = await fetch(`https://api.flutterwave.com/v3/transactions/${transactionId}/verify`, { headers: { Authorization: `Bearer ${key}` } });
       const result = await upstream.json().catch(() => ({}));
       if (!upstream.ok || result?.status !== "success") return reply(flutterwaveDiagnostic("transaction verification", upstream, result, { transaction_id: transactionId }), upstream.status || 502);
